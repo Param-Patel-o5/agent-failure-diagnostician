@@ -1,0 +1,1 @@
+# Agent diagnostician configuration
