@@ -1,1 +1,0 @@
-# Tool call model definitions
