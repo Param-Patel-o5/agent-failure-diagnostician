@@ -1,4 +1,3 @@
-# Enum definitions for agent diagnostics
 from enum import Enum
 
 
@@ -31,5 +30,5 @@ class GoalFailureSubtype(str, Enum):
 class ConfidenceBand(str, Enum):
     CONFIRMED = "confirmed"
     LIKELY = "likely"
-    POSSIBLE = "possible"
+    MAYBE = "maybe"
     INSUFFICIENT_EVIDENCE = "insufficient_evidence"
