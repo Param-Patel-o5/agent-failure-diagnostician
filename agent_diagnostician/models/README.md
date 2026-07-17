@@ -27,7 +27,7 @@ both `str` and `Enum`, meaning values serialize cleanly to/from JSON.
 | `FailureType` | Tool Use Failure, Hallucination, Goal Satisfaction Failure, Context Loss, Token Exhaustion, Premature Termination, Infinite Loop, None | Top-level category, set on every `DetectionResult` |
 | `ToolUseSubtype` | Wrong Tool Selected, Invalid Parameters, Incorrect Parameter Values, No Tool Use Failure, Insufficient Evidence | Tool Use detector's verdict |
 | `GoalFailureSubtype` | Constraint Violation, Task Misinterpretation, No Goal Failure, Insufficient Evidence | Goal Failure detector's verdict |
-| `ConfidenceBand` | Confirmed, Likely, Possible, Insufficient Evidence | Bucketed confidence, on every `DetectionResult` |
+| `ConfidenceBand` | Confirmed, Likely, Maybe, Insufficient Evidence | Bucketed confidence, on every `DetectionResult` |
 
 **Note:** subtype enums for Hallucination, Context Loss, Token Exhaustion,
 Premature Termination, and Infinite Loop don't exist yet — add them when
