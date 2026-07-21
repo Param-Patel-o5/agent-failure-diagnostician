@@ -289,6 +289,9 @@ class ToolUseDetector(BaseDetector):
         """Check if thought describes actions consistent with the selected tool.
         
         Returns True if thought appears consistent, False if mismatch detected.
+        
+        When tool descriptions are unavailable, falls back to comparing thought
+        against the tool name itself (e.g., "issue_refund" vs "send replacement").
         """
         # If available_tools present, embed thought against tool description
         if available_tools is not None:
@@ -299,22 +302,17 @@ class ToolUseDetector(BaseDetector):
                         # High similarity suggests thought matches tool purpose
                         return sim >= 0.4
 
-        # Fallback: simple keyword heuristic
-        # Look for tool-related keywords in thought
-        tool_lower = tool_name.lower()
-        thought_lower = thought.lower()
+        # Fallback: embed thought against tool name string
+        # This catches cases where thought describes a different action than
+        # what the tool name suggests (e.g., thought="send replacement" vs
+        # tool_name="issue_refund")
+        thought_tool_sim = self.embeddings.similarity(thought, tool_name)
+        # If similarity is LOW, thought and tool are unrelated → mismatch
+        # Threshold of 0.35 means we only flag when thought is clearly different
+        if thought_tool_sim < 0.35:
+            return False
 
-        # If thought contains the tool name or strong related terms, assume match
-        if tool_lower in thought_lower:
-            return True
-
-        # Simple heuristic: if thought mentions relevant actions, assume OK
-        common_verbs = ["search", "calculate", "write", "read", "analyze", "compute"]
-        for verb in common_verbs:
-            if verb in thought_lower and verb in tool_lower:
-                return True
-
-        # If we can't find evidence of mismatch, assume OK (conservative)
+        # If we can't find evidence of mismatch, assume OK
         return True
 
     # ───────────────────────────────────────────────────────────────────────
@@ -506,15 +504,13 @@ class ToolUseDetector(BaseDetector):
 
             if thought_input_sim < 0.5 and ungrounded_count > 0:
                 # Both conditions met: thought doesn't match input, AND values are ungrounded
-                combined_confidence = min(
-                    0.80,
-                    0.70 + (0.50 * min(2, ungrounded_count))  # thought mismatch + grounding failures
-                )
+                # Use simple average of evidence contributions
+                avg_confidence = (0.70 + sum(e.confidence_contribution for e in ungrounded_evidence)) / (1 + len(ungrounded_evidence))
 
                 return self.build_result(
                     failure_type=FailureType.TOOL_USE_FAILURE,
                     subtype=ToolUseSubtype.INCORRECT_PARAMETER_VALUES.value,
-                    confidence_score=combined_confidence,
+                    confidence_score=avg_confidence,
                     evidence=ungrounded_evidence + [
                         Evidence(
                             detection_stage="3.2 - Thought vs Input",
@@ -537,15 +533,23 @@ class ToolUseDetector(BaseDetector):
         )
 
         if llm_result.get("verdict") == "unjustified":
+            # Average grounding confidence with LLM contribution
+            llm_conf = 0.55
+            if ungrounded_evidence:
+                grounding_conf = sum(e.confidence_contribution for e in ungrounded_evidence) / len(ungrounded_evidence)
+                avg_confidence = (grounding_conf + llm_conf) / 2
+            else:
+                avg_confidence = llm_conf
+
             return self.build_result(
                 failure_type=FailureType.TOOL_USE_FAILURE,
                 subtype=ToolUseSubtype.INCORRECT_PARAMETER_VALUES.value,
-                confidence_score=0.55,
+                confidence_score=avg_confidence,
                 evidence=ungrounded_evidence + [
                     Evidence(
                         detection_stage="3.3 - LLM Fallback",
                         signal="llm_unjustified_values_verdict",
-                        confidence_contribution=0.55,
+                        confidence_contribution=llm_conf,
                         explanation=f"LLM judge judged parameter values unjustified: {llm_result.get('reason', 'no reason provided')}",
                     )
                 ],
@@ -557,15 +561,22 @@ class ToolUseDetector(BaseDetector):
         # Verdict == "uncertain"
         if ungrounded_count > 0:
             # Some ungrounded fields exist, LLM is uncertain
+            llm_conf = 0.10
+            if ungrounded_evidence:
+                grounding_conf = sum(e.confidence_contribution for e in ungrounded_evidence) / len(ungrounded_evidence)
+                avg_confidence = (grounding_conf + llm_conf) / 2
+            else:
+                avg_confidence = llm_conf
+
             return self.build_result(
                 failure_type=FailureType.TOOL_USE_FAILURE,
                 subtype=ToolUseSubtype.INCORRECT_PARAMETER_VALUES.value,
-                confidence_score=0.35,  # MAYBE band
+                confidence_score=avg_confidence,
                 evidence=ungrounded_evidence + [
                     Evidence(
                         detection_stage="3.3 - LLM Fallback",
                         signal="llm_uncertain_with_ungrounded",
-                        confidence_contribution=0.10,
+                        confidence_contribution=llm_conf,
                         explanation=f"LLM judge was uncertain, but {ungrounded_count} field(s) could not be grounded",
                     )
                 ],
