@@ -74,6 +74,9 @@ class ToolUseDetector(BaseDetector):
 
         # Check each step in order
         for step in trace.steps:
+            # Skip steps that clearly succeeded — no point running full detection pipeline
+            if self._step_likely_succeeded(step):
+                continue
             result = self._detect_step(trace, step)
             # If this step produced a failure (not NO_FAILURE or INSUFFICIENT_EVIDENCE), return it
             if result.subtype not in (
@@ -92,6 +95,28 @@ class ToolUseDetector(BaseDetector):
             detection_stage="none",
             fix_direction="No fix required — agent used tools correctly",
         )
+
+    def _step_likely_succeeded(self, step: Step) -> bool:
+        """Skip steps that clearly succeeded — no point running full
+        detection pipeline on steps where tool_output shows success."""
+        if step.step_status in ("error", "failed"):
+            return False
+        if step.error_message is not None:
+            return False
+
+        # Check if tool_output contains an error signal
+        if isinstance(step.tool_output, dict):
+            if "error" in step.tool_output:
+                return False
+
+        # Common success signals — if present, skip this step
+        success_keys = {"logged", "success", "ok", "created", "completed", "write_success", "updated",
+                        "recorded", "confirmed"}
+        if any(k in step.tool_output for k in success_keys):
+            return True
+
+        # Default: don't skip, analyze the step
+        return False
 
     def _detect_step(self, trace: AgentTrace, step: Step) -> DetectionResult:
         """Run full pipeline on a single step.
