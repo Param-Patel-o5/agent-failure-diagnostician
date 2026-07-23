@@ -7,11 +7,11 @@
 # Priority order (used as tiebreaker when confidence scores are equal):
 #   1. Tool Use Failure         (most specific, step-level, deterministic checks)
 #   2. Goal Satisfaction Failure (outcome-level, deterministic constraint checks)
-#   3. Hallucination            (step-level but mostly LLM-dependent)
-#   4. Context Loss             (execution-level, multi-step pattern)
-#   5. Token Exhaustion         (execution-level, metric-based)
-#   6. Premature Termination    (termination-level)
-#   7. Infinite Loop            (termination-level, pattern across steps)
+#   3. Context Loss             (execution-level, multi-step pattern)
+#   4. Token Exhaustion         (execution-level, metric-based)
+#   5. Premature Termination    (termination-level)
+#   6. Infinite Loop            (termination-level, pattern across steps)
+#   7. Hallucination            (last — most LLM-dependent, least deterministic)
 #
 # Planning failures outrank execution and termination because they are
 # root causes -- execution/termination failures are often consequences.
@@ -22,16 +22,17 @@ from agent_diagnostician.models.enums import FailureType, ConfidenceBand
 from agent_diagnostician.analysis.llm_judge import LLMJudge, MockLLMJudge
 from agent_diagnostician.detectors.planning.tool_use import ToolUseDetector
 from agent_diagnostician.detectors.planning.goal_failure import GoalFailureDetector
+from agent_diagnostician.detectors.planning.hallucination import HallucinationDetector
 
 # Priority order — lower index = higher priority when scores are tied
 DETECTOR_PRIORITY = [
     FailureType.TOOL_USE_FAILURE,
     FailureType.GOAL_SATISFACTION_FAILURE,
-    FailureType.HALLUCINATION,
     FailureType.CONTEXT_LOSS,
     FailureType.TOKEN_EXHAUSTION,
     FailureType.PREMATURE_TERMINATION,
     FailureType.INFINITE_LOOP,
+    FailureType.HALLUCINATION,
 ]
 
 
@@ -61,7 +62,7 @@ class Classifier:
         self.detectors = [
             ToolUseDetector(llm_judge=self.llm_judge),
             GoalFailureDetector(llm_judge=self.llm_judge),
-            # HallucinationDetector(llm_judge=self.llm_judge),  # not yet built
+            HallucinationDetector(llm_judge=self.llm_judge),
             # ContextLossDetector(llm_judge=self.llm_judge),    # not yet built
             # TokenExhaustionDetector(llm_judge=self.llm_judge),# not yet built
             # PrematureTerminationDetector(llm_judge=self.llm_judge), # not yet built

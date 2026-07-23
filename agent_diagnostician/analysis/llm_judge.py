@@ -97,6 +97,26 @@ class LLMJudge(ABC):
         """
         raise NotImplementedError
 
+    @abstractmethod
+    def evaluate_hallucination(
+        self,
+        task: str,
+        tool_input: dict,
+        prior_outputs: list[Any],
+        thought: str | None = None,
+        available_tools: list[dict] | None = None,
+    ) -> dict:
+        """Judge whether the agent hallucinated values in tool_input
+        or thought field.
+        
+        Returns:
+            {
+                'confidence': float (0-1),
+                'reason': str
+            }
+        """
+        raise NotImplementedError
+
 
 # ─── Mock Implementation (for development/testing without API) ─────────────────
 
@@ -116,6 +136,9 @@ class MockLLMJudge(LLMJudge):
 
     def evaluate_goal_alignment(self, task, final_output, steps, thought=None, embedding_score=None):
         return {"verdict": "uncertain", "confidence": 0.0, "reason": "mock judge"}
+
+    def evaluate_hallucination(self, task, tool_input, prior_outputs, thought=None, available_tools=None):
+        return {"confidence": 0.0, "reason": "mock judge"}
 
 
 # ─── Gemini Implementation ─────────────────────────────────────────────────────
@@ -282,6 +305,57 @@ Respond ONLY with a JSON object:
   "verdict": "correct" or "misinterpreted" or "uncertain",
   "confidence": <float between 0 and 1>,
   "reason": "<one sentence>"
+}}"""
+
+        raw = self._call(prompt)
+        return self._parse_json(raw)
+
+    def evaluate_hallucination(
+        self,
+        task: str,
+        tool_input: dict[str, Any],
+        prior_outputs: list[Any],
+        thought: str | None = None,
+        available_tools: list[dict] | None = None,
+    ) -> dict:
+        prior_str = "\n".join(
+            f"Step {i} output: {json.dumps(o)}"
+            for i, o in enumerate(prior_outputs)
+        )
+        thought_str = f"\nAgent's reasoning: {thought}" if thought else ""
+        tools_str = "\n".join(
+            f"- {t['name']}: {t.get('description', '')}"
+            for t in (available_tools or [])
+        )
+        tools_section = f"\nAvailable tools:\n{tools_str}" if tools_str else ""
+
+        prompt = f"""You are evaluating whether an AI agent hallucinated values in its tool call or reasoning.
+
+Task: {task}{thought_str}{tools_section}
+
+Prior tool outputs available to the agent:
+{prior_str if prior_str else "None"}
+
+Parameters the agent passed to the tool:
+{json.dumps(tool_input, indent=2)}
+
+Hallucination means the agent used specific values (IDs, names, numbers,
+facts) that cannot be traced to the task or any prior tool output, and
+are not reasonable defaults for the tool type.
+
+Note: common defaults like "metric", "json", "true", "en" are not
+hallucinations even if not in the task. Specific identifiers like
+flight IDs, order numbers, user IDs that appear nowhere in context
+ARE hallucinations.
+
+How confident are you (0.0 to 1.0) that the agent hallucinated?
+0.0 = definitely not hallucinated
+1.0 = definitely hallucinated
+
+Respond ONLY with a JSON object:
+{{
+  "confidence": <float between 0 and 1>,
+  "reason": "<one sentence explanation>"
 }}"""
 
         raw = self._call(prompt)
