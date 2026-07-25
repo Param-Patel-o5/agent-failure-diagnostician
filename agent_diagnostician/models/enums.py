@@ -27,6 +27,18 @@ class GoalFailureSubtype(str, Enum):
     INSUFFICIENT_EVIDENCE = "insufficient_evidence"
 
 
+class TokenExhaustionSubtype(str, Enum):
+    TOKEN_EXHAUSTION = "token_exhaustion"
+    NO_TOKEN_EXHAUSTION = "no_token_exhaustion"
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"
+
+
+class HallucinationSubtype(str, Enum):
+    HALLUCINATION_DETECTED = "hallucination_detected"
+    NO_HALLUCINATION = "no_hallucination"
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"
+
+
 class ConfidenceBand(str, Enum):
     CONFIRMED = "confirmed"
     LIKELY = "likely"

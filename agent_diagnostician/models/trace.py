@@ -58,6 +58,7 @@ class AgentTrace(BaseModel):
 
     # Tier 2 -- common, not guaranteed
     total_tokens: Optional[int] = None
+    error_message: Optional[str] = None  # run-level error, mirrors Step.error_message
 
     # Tier 3 -- rare
     available_tools: Optional[list[ToolSpec]] = None

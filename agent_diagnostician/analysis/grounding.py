@@ -6,7 +6,8 @@
 # if it's a failure, that's the detector's job.
 
 from typing import Any
-from difflib import SequenceMatcher
+
+from agent_diagnostician.utils.text import fuzzy_match as _fuzzy_match_fn
 
 
 class GroundingAnalyzer:
@@ -114,16 +115,8 @@ class GroundingAnalyzer:
 
     @staticmethod
     def _fuzzy_match(value: str, source: str) -> float:
-        """Compute fuzzy string similarity between a value and a source string.
-        Uses SequenceMatcher -- good for catching partial matches and
-        reformatted versions of the same value."""
-        if not value or not source:
-            return 0.0
-        # Check if value appears as substring first (fast path)
-        if value.lower() in source.lower():
-            return 1.0
-        # Otherwise compute full similarity ratio
-        return SequenceMatcher(None, value.lower(), source.lower()).ratio()
+        """Delegates to utils.text.fuzzy_match — shared helper, no local copy."""
+        return _fuzzy_match_fn(value, source)
 
     @staticmethod
     def _is_numeric(value: Any) -> bool:
