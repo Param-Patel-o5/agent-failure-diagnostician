@@ -18,11 +18,19 @@
 
 from agent_diagnostician.models.trace import AgentTrace
 from agent_diagnostician.models.result import DetectionResult
-from agent_diagnostician.models.enums import FailureType, ConfidenceBand
+from agent_diagnostician.models.enums import (
+    FailureType,
+    ConfidenceBand,
+    ToolUseSubtype,
+    GoalFailureSubtype,
+    HallucinationSubtype,
+    TokenExhaustionSubtype,
+)
 from agent_diagnostician.analysis.llm_judge import LLMJudge, MockLLMJudge
 from agent_diagnostician.detectors.planning.tool_use import ToolUseDetector
 from agent_diagnostician.detectors.planning.goal_failure import GoalFailureDetector
 from agent_diagnostician.detectors.planning.hallucination import HallucinationDetector
+from agent_diagnostician.detectors.execution.token_exhaustion import TokenExhaustionDetector
 
 # Priority order — lower index = higher priority when scores are tied
 DETECTOR_PRIORITY = [
@@ -34,6 +42,23 @@ DETECTOR_PRIORITY = [
     FailureType.INFINITE_LOOP,
     FailureType.HALLUCINATION,
 ]
+
+# Subtypes that represent "no problem found" or "not enough data" for each
+# detector. Used in diagnose() to filter out non-failure results.
+# IMPORTANT: when a new detector is added (ContextLossDetector,
+# PrematureTerminationDetector, InfiniteLoopDetector), add its NO_FAILURE
+# and INSUFFICIENT_EVIDENCE enum values here so the filter stays correct.
+NO_FAILURE_SUBTYPES = {
+    ToolUseSubtype.NO_FAILURE.value,             # "no_tool_use_failure"
+    GoalFailureSubtype.NO_FAILURE.value,         # "no_goal_failure"
+    HallucinationSubtype.NO_HALLUCINATION.value, # "no_hallucination"
+    TokenExhaustionSubtype.NO_TOKEN_EXHAUSTION.value,  # "no_token_exhaustion"
+    ToolUseSubtype.INSUFFICIENT_EVIDENCE.value,
+    GoalFailureSubtype.INSUFFICIENT_EVIDENCE.value,
+    HallucinationSubtype.INSUFFICIENT_EVIDENCE.value,
+    TokenExhaustionSubtype.INSUFFICIENT_EVIDENCE.value,
+    "none",  # classifier's own _no_failure_result subtype
+}
 
 
 class Classifier:
@@ -63,10 +88,10 @@ class Classifier:
             ToolUseDetector(llm_judge=self.llm_judge),
             GoalFailureDetector(llm_judge=self.llm_judge),
             HallucinationDetector(llm_judge=self.llm_judge),
-            # ContextLossDetector(llm_judge=self.llm_judge),    # not yet built
-            # TokenExhaustionDetector(llm_judge=self.llm_judge),# not yet built
+            TokenExhaustionDetector(),  # no LLM — purely metric/heuristic based
+            # ContextLossDetector(llm_judge=self.llm_judge),         # not yet built
             # PrematureTerminationDetector(llm_judge=self.llm_judge), # not yet built
-            # InfiniteLoopDetector(llm_judge=self.llm_judge),   # not yet built
+            # InfiniteLoopDetector(llm_judge=self.llm_judge),         # not yet built
         ]
 
     def diagnose(self, trace: AgentTrace) -> DetectionResult:
@@ -92,15 +117,12 @@ class Classifier:
             result = detector.detect(trace)
             all_results.append(result)
 
-        # Filter to only real failures
+        # Filter to only real failures — exclude no-failure and insufficient-evidence
+        # results from every detector. NO_FAILURE_SUBTYPES is derived from enums
+        # directly so it can never drift out of sync with detector output values.
         failures = [
             r for r in all_results
-            if r.subtype not in (
-                "no_tool_use_failure",
-                "no_goal_failure",
-                "none",
-                "insufficient_evidence",
-            )
+            if r.subtype not in NO_FAILURE_SUBTYPES
             and r.confidence_band != ConfidenceBand.INSUFFICIENT_EVIDENCE
         ]
 

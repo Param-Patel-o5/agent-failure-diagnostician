@@ -3,10 +3,10 @@
 # Detects whether the agent fabricated values in tool_input or thought
 # that cannot be traced to the task or any prior tool output.
 #
-# Returns one of three outcomes (as plain strings):
-#   "hallucination_detected"
-#   "no_hallucination"  
-#   "insufficient_evidence"
+# Returns one of three outcomes (HallucinationSubtype enum values):
+#   HALLUCINATION_DETECTED = "hallucination_detected"
+#   NO_HALLUCINATION       = "no_hallucination"
+#   INSUFFICIENT_EVIDENCE  = "insufficient_evidence"
 #
 # Pipeline: grounding check + LLM judge weighted combination.
 # Neither signal alone is sufficient — both must contribute.
@@ -16,7 +16,7 @@ from typing import Any
 from agent_diagnostician.detectors.base import BaseDetector
 from agent_diagnostician.models.trace import AgentTrace, Step
 from agent_diagnostician.models.result import DetectionResult, Evidence
-from agent_diagnostician.models.enums import FailureType, ConfidenceBand
+from agent_diagnostician.models.enums import FailureType, ConfidenceBand, HallucinationSubtype
 
 from agent_diagnostician.analysis.grounding import GroundingAnalyzer
 from agent_diagnostician.analysis.llm_judge import LLMJudge, MockLLMJudge
@@ -55,7 +55,7 @@ class HallucinationDetector(BaseDetector):
         if not trace.steps:
             return self.build_result(
                 failure_type=FailureType.HALLUCINATION,
-                subtype="insufficient_evidence",
+                subtype=HallucinationSubtype.INSUFFICIENT_EVIDENCE.value,
                 confidence_score=0.0,
                 evidence=[],
                 reason="No steps found in trace to analyze",
@@ -80,12 +80,12 @@ class HallucinationDetector(BaseDetector):
             result = self._detect_step_hallucination(trace, step)
             
             # Check thresholds
-            if result.subtype == "hallucination_detected":
+            if result.subtype == HallucinationSubtype.HALLUCINATION_DETECTED.value:
                 return result
-            elif result.subtype == "no_hallucination":
+            elif result.subtype == HallucinationSubtype.NO_HALLUCINATION.value:
                 # Continue to next step
                 continue
-            elif result.subtype == "insufficient_evidence":
+            elif result.subtype == HallucinationSubtype.INSUFFICIENT_EVIDENCE.value:
                 # Track best candidate (highest confidence insufficient evidence)
                 if result.confidence_score > best_candidate_confidence:
                     best_candidate = result
@@ -100,7 +100,7 @@ class HallucinationDetector(BaseDetector):
         # All steps passed with confidence < 0.20 → no hallucination
         return self.build_result(
             failure_type=FailureType.HALLUCINATION,
-            subtype="no_hallucination",
+            subtype=HallucinationSubtype.NO_HALLUCINATION.value,
             confidence_score=1.0,
             evidence=[],
             reason="No hallucination detected across all steps",
@@ -245,7 +245,7 @@ class HallucinationDetector(BaseDetector):
             # Hallucination detected
             return self.build_result(
                 failure_type=FailureType.HALLUCINATION,
-                subtype="hallucination_detected",
+                subtype=HallucinationSubtype.HALLUCINATION_DETECTED.value,
                 confidence_score=final_confidence,
                 evidence=grounding_evidence + llm_evidence,
                 reason=llm_reason,
@@ -256,7 +256,7 @@ class HallucinationDetector(BaseDetector):
             # No hallucination for this step
             return self.build_result(
                 failure_type=FailureType.HALLUCINATION,
-                subtype="no_hallucination",
+                subtype=HallucinationSubtype.NO_HALLUCINATION.value,
                 confidence_score=1.0 - final_confidence,  # Invert: high confidence of no hallucination
                 evidence=[],
                 reason="No hallucination signals detected in this step",
@@ -267,7 +267,7 @@ class HallucinationDetector(BaseDetector):
             # Insufficient evidence — neither strong hallucination nor strong absence
             return self.build_result(
                 failure_type=FailureType.HALLUCINATION,
-                subtype="insufficient_evidence",
+                subtype=HallucinationSubtype.INSUFFICIENT_EVIDENCE.value,
                 confidence_score=final_confidence,
                 evidence=grounding_evidence + llm_evidence,
                 reason="Insufficient evidence to confirm or rule out hallucination",
