@@ -109,6 +109,10 @@ class ToolUseDetector(BaseDetector):
             if "error" in step.tool_output:
                 return False
 
+        # Non-dict non-null output — assume success, skip
+        if step.tool_output is not None and not isinstance(step.tool_output, dict):
+            return True
+
         # Common success signals — if present, skip this step
         # Only check if tool_output exists and is a dict
         if isinstance(step.tool_output, dict):

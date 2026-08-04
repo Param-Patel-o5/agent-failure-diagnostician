@@ -171,9 +171,14 @@ class GeminiLLMJudge(LLMJudge):
     """Real LLM judge using Google Gemini API.
     Set your API key via environment variable GEMINI_API_KEY before using."""
 
-    def __init__(self, model_name: str = "gemini-1.5-flash-latest"):
+    def __init__(self, model_name: str = None):
         import google.generativeai as genai
         import os
+        
+        # Use model from config if not specified
+        if model_name is None:
+            from agent_diagnostician.config import LLM_MODEL
+            model_name = LLM_MODEL
 
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:

@@ -220,18 +220,11 @@ class Classifier:
         Returns:
             Dict with 'ran' and 'skipped' lists of detector names
         """
-        all_detector_names = {
-            "ToolUseDetector",
-            "GoalFailureDetector", 
-            "HallucinationDetector",
-            "TokenExhaustionDetector",
-            "ContextLossDetector",
-            "InfiniteLoopDetector",
-            "PrematureTerminationDetector",
-        }
+        # Get all possible detector names from config mapping
+        all_possible = {v for v in DETECTOR_MAPPING.values()}
         
         ran = list(self.ran_detectors)
-        skipped = list(all_detector_names - self.ran_detectors)
+        skipped = list(all_possible - self.ran_detectors)
         
         return {
             "ran": ran,
