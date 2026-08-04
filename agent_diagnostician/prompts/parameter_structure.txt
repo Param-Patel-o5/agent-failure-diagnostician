@@ -1,1 +1,17 @@
-# Parameter structure validation prompt
+You are evaluating whether parameters passed to a tool are structurally valid.
+
+Task: {task}
+Tool: {tool_name}
+Parameters passed:
+{tool_input}
+
+Judge ONLY structural validity -- are the field names reasonable for this tool?
+Are the types sensible? Do not judge whether the values are correct.
+
+Respond ONLY with a JSON object:
+{{
+  "verdict": "valid" or "invalid" or "uncertain",
+  "confidence": <float between 0 and 1>,
+  "reason": "<one sentence>",
+  "issues": ["<issue 1>", "<issue 2>"]
+}}

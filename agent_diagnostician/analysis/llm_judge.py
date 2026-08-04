@@ -229,23 +229,13 @@ class GeminiLLMJudge(LLMJudge):
         tool_input: dict[str, Any],
         task: str,
     ) -> dict:
-        prompt = f"""You are evaluating whether parameters passed to a tool are structurally valid.
-
-Task: {task}
-Tool: {tool_name}
-Parameters passed:
-{json.dumps(tool_input, indent=2)}
-
-Judge ONLY structural validity -- are the field names reasonable for this tool?
-Are the types sensible? Do not judge whether the values are correct.
-
-Respond ONLY with a JSON object:
-{{
-  "verdict": "valid" or "invalid" or "uncertain",
-  "confidence": <float between 0 and 1>,
-  "reason": "<one sentence>",
-  "issues": ["<issue 1>", "<issue 2>"]
-}}"""
+        # Load prompt template and format it
+        template = self._load_prompt("parameter_structure")
+        prompt = template.format(
+            task=task,
+            tool_name=tool_name,
+            tool_input=json.dumps(tool_input, indent=2)
+        )
 
         raw = self._call(prompt)
         return self._parse_json(raw)
@@ -261,28 +251,18 @@ Respond ONLY with a JSON object:
             f"Step {i} output: {json.dumps(o)}"
             for i, o in enumerate(prior_outputs)
         )
+        if not prior_str:
+            prior_str = "None"
         thought_str = f"\nAgent's reasoning: {thought}" if thought else ""
 
-        prompt = f"""You are evaluating whether parameter values passed to a tool are logically justified.
-
-Task: {task}{thought_str}
-
-Prior tool outputs available to the agent:
-{prior_str if prior_str else "None"}
-
-Parameters the agent passed:
-{json.dumps(tool_input, indent=2)}
-
-Can each parameter value be traced back to the task or prior outputs?
-Are the values logically correct given the available information?
-
-Respond ONLY with a JSON object:
-{{
-  "verdict": "justified" or "unjustified" or "uncertain",
-  "confidence": <float between 0 and 1>,
-  "reason": "<one sentence>",
-  "suspicious_fields": ["<field name>", ...]
-}}"""
+        # Load prompt template and format it
+        template = self._load_prompt("parameter_values")
+        prompt = template.format(
+            task=task,
+            thought_str=thought_str,
+            prior_str=prior_str,
+            tool_input=json.dumps(tool_input, indent=2)
+        )
 
         raw = self._call(prompt)
         return self._parse_json(raw)

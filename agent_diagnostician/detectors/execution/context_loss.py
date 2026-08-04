@@ -14,7 +14,7 @@ from typing import Any
 from agent_diagnostician.detectors.base import BaseDetector
 from agent_diagnostician.models.trace import AgentTrace, Step
 from agent_diagnostician.models.result import DetectionResult, Evidence
-from agent_diagnostician.models.enums import FailureType
+from agent_diagnostician.models.enums import FailureType, ContextLossSubtype
 from agent_diagnostician.analysis.embeddings import EmbeddingMatcher
 from agent_diagnostician.analysis.grounding import GroundingAnalyzer
 from agent_diagnostician.analysis.llm_judge import LLMJudge, MockLLMJudge
@@ -57,7 +57,7 @@ class ContextLossDetector(BaseDetector):
         if len(trace.steps) < 4:
             return self.build_result(
                 failure_type=FailureType.CONTEXT_LOSS,
-                subtype="no_context_loss",
+                subtype=ContextLossSubtype.NO_CONTEXT_LOSS.value,
                 confidence_score=1.0,
                 evidence=[],
                 reason="Trace too short for context loss analysis (need >= 4 steps)",
@@ -94,7 +94,7 @@ class ContextLossDetector(BaseDetector):
             if step_confidence >= self.MIN_CONFIDENCE_THRESHOLD:
                 return self.build_result(
                     failure_type=FailureType.CONTEXT_LOSS,
-                    subtype="context_loss_detected",
+                    subtype=ContextLossSubtype.CONTEXT_LOSS_DETECTED.value,
                     confidence_score=step_confidence,
                     evidence=evidence,
                     reason=f"Context loss detected at step {step.step_index} — agent dropped or contradicted information from prior steps",
@@ -105,7 +105,7 @@ class ContextLossDetector(BaseDetector):
         # No step across the whole trace fired the threshold
         return self.build_result(
             failure_type=FailureType.CONTEXT_LOSS,
-            subtype="no_context_loss",
+            subtype=ContextLossSubtype.NO_CONTEXT_LOSS.value,
             confidence_score=1.0,
             evidence=[],
             reason="No context loss detected across all steps",

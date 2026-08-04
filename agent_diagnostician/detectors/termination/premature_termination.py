@@ -11,7 +11,7 @@ from typing import Any
 from agent_diagnostician.detectors.base import BaseDetector
 from agent_diagnostician.models.trace import AgentTrace, Step
 from agent_diagnostician.models.result import DetectionResult, Evidence
-from agent_diagnostician.models.enums import FailureType
+from agent_diagnostician.models.enums import FailureType, PrematureTerminationSubtype
 from agent_diagnostician.analysis.embeddings import EmbeddingMatcher
 from agent_diagnostician.analysis.llm_judge import LLMJudge, MockLLMJudge
 
@@ -53,7 +53,7 @@ class PrematureTerminationDetector(BaseDetector):
         if not trace.steps:
             return self.build_result(
                 failure_type=FailureType.PREMATURE_TERMINATION,
-                subtype="no_premature_termination",
+                subtype=PrematureTerminationSubtype.NO_PREMATURE_TERMINATION.value,
                 confidence_score=0.0,
                 evidence=[],
                 reason="No steps to analyze",
@@ -191,7 +191,7 @@ class PrematureTerminationDetector(BaseDetector):
         if final_confidence >= self.MIN_CONFIDENCE_THRESHOLD:
             return self.build_result(
                 failure_type=FailureType.PREMATURE_TERMINATION,
-                subtype="premature_termination_detected",
+                subtype=PrematureTerminationSubtype.PREMATURE_TERMINATION_DETECTED.value,
                 confidence_score=final_confidence,
                 evidence=evidence,
                 reason="Agent terminated before completing all task requirements",
@@ -201,7 +201,7 @@ class PrematureTerminationDetector(BaseDetector):
         else:
             return self.build_result(
                 failure_type=FailureType.PREMATURE_TERMINATION,
-                subtype="no_premature_termination",
+                subtype=PrematureTerminationSubtype.NO_PREMATURE_TERMINATION.value,
                 confidence_score=1.0 - final_confidence,
                 evidence=evidence,
                 reason="No premature termination detected",

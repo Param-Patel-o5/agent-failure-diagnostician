@@ -1,1 +1,20 @@
-# Parameter values validation prompt
+You are evaluating whether parameter values passed to a tool are logically justified.
+
+Task: {task}{thought_str}
+
+Prior tool outputs available to the agent:
+{prior_str}
+
+Parameters the agent passed:
+{tool_input}
+
+Can each parameter value be traced back to the task or prior outputs?
+Are the values logically correct given the available information?
+
+Respond ONLY with a JSON object:
+{{
+  "verdict": "justified" or "unjustified" or "uncertain",
+  "confidence": <float between 0 and 1>,
+  "reason": "<one sentence>",
+  "suspicious_fields": ["<field name>", ...]
+}}

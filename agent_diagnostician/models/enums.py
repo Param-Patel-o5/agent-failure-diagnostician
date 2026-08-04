@@ -48,6 +48,18 @@ class InfiniteLoopSubtype(str, Enum):
     INSUFFICIENT_EVIDENCE = "insufficient_evidence"
 
 
+class ContextLossSubtype(str, Enum):
+    CONTEXT_LOSS_DETECTED = "context_loss_detected"
+    NO_CONTEXT_LOSS = "no_context_loss"
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"
+
+
+class PrematureTerminationSubtype(str, Enum):
+    PREMATURE_TERMINATION_DETECTED = "premature_termination_detected"
+    NO_PREMATURE_TERMINATION = "no_premature_termination"
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"
+
+
 class ConfidenceBand(str, Enum):
     CONFIRMED = "confirmed"
     LIKELY = "likely"

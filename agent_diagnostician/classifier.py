@@ -20,6 +20,8 @@ from agent_diagnostician.models.enums import (
     HallucinationSubtype,
     TokenExhaustionSubtype,
     InfiniteLoopSubtype,
+    ContextLossSubtype,
+    PrematureTerminationSubtype,
 )
 from agent_diagnostician.analysis.llm_judge import LLMJudge, MockLLMJudge
 from agent_diagnostician.config import DEFAULT_ENABLED_DETECTORS, DETECTOR_MAPPING
@@ -55,11 +57,15 @@ NO_FAILURE_SUBTYPES = {
     HallucinationSubtype.NO_HALLUCINATION.value, # "no_hallucination"
     TokenExhaustionSubtype.NO_TOKEN_EXHAUSTION.value,  # "no_token_exhaustion"
     InfiniteLoopSubtype.NO_INFINITE_LOOP.value,  # "no_infinite_loop"
+    ContextLossSubtype.NO_CONTEXT_LOSS.value,    # "no_context_loss"
+    PrematureTerminationSubtype.NO_PREMATURE_TERMINATION.value,  # "no_premature_termination"
     ToolUseSubtype.INSUFFICIENT_EVIDENCE.value,
     GoalFailureSubtype.INSUFFICIENT_EVIDENCE.value,
     HallucinationSubtype.INSUFFICIENT_EVIDENCE.value,
     TokenExhaustionSubtype.INSUFFICIENT_EVIDENCE.value,
     InfiniteLoopSubtype.INSUFFICIENT_EVIDENCE.value,
+    ContextLossSubtype.INSUFFICIENT_EVIDENCE.value,
+    PrematureTerminationSubtype.INSUFFICIENT_EVIDENCE.value,
     "none",  # classifier's own _no_failure_result subtype
 }
 
@@ -248,7 +254,7 @@ class Classifier:
         return DetectionResult(
             failure_type=FailureType.NONE,
             subtype="no_failure",
-            confidence_score=1.0,
+            confidence_score=0.0,  # Zero confidence that there IS a failure
             confidence_band=ConfidenceBand.CONFIRMED,
             evidence=evidence,
             reason="No failure detected across all enabled detectors.",

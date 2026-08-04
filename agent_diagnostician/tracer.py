@@ -50,7 +50,9 @@ def create_classifier_with_preset(
             FailureType.GOAL_SATISFACTION_FAILURE,
             FailureType.HALLUCINATION,
             FailureType.TOKEN_EXHAUSTION,
+            FailureType.CONTEXT_LOSS,
             FailureType.INFINITE_LOOP,
+            FailureType.PREMATURE_TERMINATION,
         ],
         "cheap": [
             FailureType.TOKEN_EXHAUSTION,
@@ -59,7 +61,9 @@ def create_classifier_with_preset(
             FailureType.TOOL_USE_FAILURE,
             FailureType.GOAL_SATISFACTION_FAILURE,
             FailureType.TOKEN_EXHAUSTION,
+            FailureType.CONTEXT_LOSS,
             FailureType.INFINITE_LOOP,
+            FailureType.PREMATURE_TERMINATION,
         ],
         "deterministic_only": [
             FailureType.TOKEN_EXHAUSTION,
@@ -69,7 +73,9 @@ def create_classifier_with_preset(
             FailureType.GOAL_SATISFACTION_FAILURE,
             FailureType.HALLUCINATION,
             FailureType.TOKEN_EXHAUSTION,
+            FailureType.CONTEXT_LOSS,
             FailureType.INFINITE_LOOP,
+            FailureType.PREMATURE_TERMINATION,
         ],
     }
 
