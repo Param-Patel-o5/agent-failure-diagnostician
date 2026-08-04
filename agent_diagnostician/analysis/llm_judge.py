@@ -186,13 +186,67 @@ class GeminiLLMJudge(LLMJudge):
                 "GEMINI_API_KEY environment variable not set. "
                 "Get a free key from https://aistudio.google.com/app/apikey"
             )
+        
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(model_name)
+        
+        # Try to initialize the model with fallbacks in order of preference
+        fallback_models = [
+            model_name,
+            "gemini-1.5-flash", 
+            "gemini-1.5-pro", 
+            "gemini-pro",
+            "gemini-1.0-pro"
+        ]
+        
+        self.model = None
+        self.model_name = None
+        last_error = None
+        
+        for model in fallback_models:
+            try:
+                self.model = genai.GenerativeModel(model)
+                self.model_name = model
+                print(f"Successfully initialized Gemini model: {model}")
+                break
+            except Exception as e:
+                last_error = e
+                print(f"Failed to initialize model {model}: {e}")
+                continue
+        
+        if self.model is None:
+            raise ValueError(
+                f"Could not initialize any Gemini model. Tried: {fallback_models}. "
+                f"Last error: {last_error}. "
+                "Check your API key and model availability."
+            )
 
     def _call(self, prompt: str) -> str:
         """Send prompt to Gemini, return raw text response."""
-        response = self.model.generate_content(prompt)
-        return response.text.strip()
+        try:
+            response = self.model.generate_content(prompt)
+            return response.text.strip()
+        except Exception as e:
+            # Handle common API errors gracefully by returning uncertain verdict
+            error_str = str(e).lower()
+            
+            # Quota exceeded (429 errors)
+            if "429" in str(e) or "quota" in error_str or "rate limit" in error_str:
+                return '{"verdict": "uncertain", "confidence": 0.0, "reason": "quota exceeded"}'
+            
+            # Model not found (404 errors)
+            if "404" in str(e) or "not found" in error_str or "model" in error_str:
+                return '{"verdict": "uncertain", "confidence": 0.0, "reason": "model not found"}'
+            
+            # API key issues
+            if "api key" in error_str or "authentication" in error_str or "credentials" in error_str:
+                return '{"verdict": "uncertain", "confidence": 0.0, "reason": "authentication error"}'
+            
+            # Network/connection issues
+            if "connection" in error_str or "timeout" in error_str or "network" in error_str:
+                return '{"verdict": "uncertain", "confidence": 0.0, "reason": "connection error"}'
+            
+            # For any other unexpected errors, re-raise to help with debugging
+            raise
 
     def _parse_json(self, raw: str) -> dict:
         """Parse JSON from LLM response. Strips markdown fences if present."""

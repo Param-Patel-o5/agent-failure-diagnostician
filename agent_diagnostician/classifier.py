@@ -46,11 +46,10 @@ DETECTOR_PRIORITY = [
     FailureType.HALLUCINATION,
 ]
 
-# Subtypes that represent "no problem found" or "not enough data" for each
-# detector. Used in diagnose() to filter out non-failure results.
-# IMPORTANT: when a new detector is added (ContextLossDetector,
-# PrematureTerminationDetector, InfiniteLoopDetector), add its NO_FAILURE
-# and INSUFFICIENT_EVIDENCE enum values here so the filter stays correct.
+# Subtypes that represent "no problem found" for each detector.
+# Used in diagnose() to filter out non-failure results.
+# NOTE: INSUFFICIENT_EVIDENCE is NOT included here because it represents
+# a valid diagnostic result (we found evidence of a problem but can't validate it fully).
 NO_FAILURE_SUBTYPES = {
     ToolUseSubtype.NO_FAILURE.value,             # "no_tool_use_failure"
     GoalFailureSubtype.NO_FAILURE.value,         # "no_goal_failure"
@@ -59,13 +58,6 @@ NO_FAILURE_SUBTYPES = {
     InfiniteLoopSubtype.NO_INFINITE_LOOP.value,  # "no_infinite_loop"
     ContextLossSubtype.NO_CONTEXT_LOSS.value,    # "no_context_loss"
     PrematureTerminationSubtype.NO_PREMATURE_TERMINATION.value,  # "no_premature_termination"
-    ToolUseSubtype.INSUFFICIENT_EVIDENCE.value,
-    GoalFailureSubtype.INSUFFICIENT_EVIDENCE.value,
-    HallucinationSubtype.INSUFFICIENT_EVIDENCE.value,
-    TokenExhaustionSubtype.INSUFFICIENT_EVIDENCE.value,
-    InfiniteLoopSubtype.INSUFFICIENT_EVIDENCE.value,
-    ContextLossSubtype.INSUFFICIENT_EVIDENCE.value,
-    PrematureTerminationSubtype.INSUFFICIENT_EVIDENCE.value,
     "none",  # classifier's own _no_failure_result subtype
 }
 
@@ -170,11 +162,10 @@ class Classifier:
             all_results.append(result)
             self.ran_detectors.add(detector_name)
 
-        # Filter to only real failures — exclude no-failure and insufficient-evidence
+        # Filter to only real failures — exclude only explicit "no failure" results
         failures = [
             r for r in all_results
             if r.subtype not in NO_FAILURE_SUBTYPES
-            and r.confidence_band != ConfidenceBand.INSUFFICIENT_EVIDENCE
         ]
 
         # Store all failures for multi-failure summary

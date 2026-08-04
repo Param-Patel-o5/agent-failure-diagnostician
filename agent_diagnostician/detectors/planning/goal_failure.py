@@ -110,9 +110,16 @@ class GoalFailureDetector(BaseDetector):
 
         # Check A — Validate each constraint against final_output
         final_output_str = str(trace.final_output) if trace.final_output is not None else ""
+        insufficient_evidence_count = 0
 
         for constraint in constraints:
             validation = self._validate_single_constraint(constraint, trace.final_output)
+
+            # Check if this constraint validation returned insufficient evidence
+            if validation.get("insufficient_evidence", False):
+                insufficient_evidence_count += 1
+                # Don't count as violation, but note we can't validate
+                continue
 
             if not validation["satisfied"]:
                 violated_count += 1
@@ -128,6 +135,15 @@ class GoalFailureDetector(BaseDetector):
                         explanation=f"Constraint violated: {constraint['raw']} — {validation['reason']}",
                     )
                 )
+
+        # If we have insufficient evidence for most/all constraints, return low confidence
+        if insufficient_evidence_count >= total_constraints * 0.7:  # 70% or more constraints can't be validated
+            return (0.05, [Evidence(
+                detection_stage="1A - Constraint Validation", 
+                signal="insufficient_evidence",
+                confidence_contribution=0.05,
+                explanation=f"Cannot validate {insufficient_evidence_count}/{total_constraints} constraints due to empty/inadequate output"
+            )])
 
         # Check B — Thought consistency (supporting signal only)
         thought_inconsistency_fired = False
@@ -315,6 +331,24 @@ class GoalFailureDetector(BaseDetector):
         constraint_confidence, constraint_evidence = constraint_result
         misinterpretation_confidence, misinterpretation_evidence = misinterpretation_result
 
+        # CASE 4 (check first): Insufficient evidence due to empty/null output
+        # Check if constraint validation returned insufficient evidence signal
+        insufficient_evidence_detected = any(
+            e.signal == "insufficient_evidence" 
+            for e in constraint_evidence
+        )
+        
+        if len(extracted_constraints) > 0 and insufficient_evidence_detected:
+            return self.build_result(
+                failure_type=FailureType.GOAL_SATISFACTION_FAILURE,
+                subtype=GoalFailureSubtype.INSUFFICIENT_EVIDENCE.value,
+                confidence_score=0.10,
+                evidence=constraint_evidence,
+                reason="Cannot validate constraints due to empty or inadequate output",
+                detection_stage="1A - Constraint Validation",
+                fix_direction="Ensure agent produces complete output that can be validated against task constraints",
+            )
+
         # CASE 1: Both are 0.0 or below threshold (< 0.20) → NO_FAILURE
         if constraint_confidence < 0.20 and misinterpretation_confidence < 0.20:
             return self.build_result(
@@ -326,24 +360,6 @@ class GoalFailureDetector(BaseDetector):
                 detection_stage="none",
                 fix_direction="No fix required — goal was satisfied",
             )
-
-        # CASE 4: Constraints were extracted but neither analysis produced a clear verdict
-        # Only fires when we had constraints to validate but couldn't reach a verdict
-        if len(extracted_constraints) > 0 and constraint_confidence == 0.0 and misinterpretation_confidence <= 0.10:
-            llm_uncertain = any(
-                e.signal in ("llm_uncertain_verdict", "llm_uncertain_with_ungrounded")
-                for e in misinterpretation_evidence
-            )
-            if llm_uncertain and not constraint_evidence:
-                return self.build_result(
-                    failure_type=FailureType.GOAL_SATISFACTION_FAILURE,
-                    subtype=GoalFailureSubtype.INSUFFICIENT_EVIDENCE.value,
-                    confidence_score=0.10,
-                    evidence=misinterpretation_evidence,
-                    reason="Constraints were present but neither analysis produced a clear verdict",
-                    detection_stage="aggregator",
-                    fix_direction="Provide clearer task instructions with explicit constraints, or gather more context to evaluate task completion",
-                )
 
         # CASE 2: constraint_confidence >= misinterpretation_confidence
         if constraint_confidence >= misinterpretation_confidence:

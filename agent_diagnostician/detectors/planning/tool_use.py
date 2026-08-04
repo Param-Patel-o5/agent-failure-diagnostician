@@ -508,16 +508,50 @@ class ToolUseDetector(BaseDetector):
 
         ungrounded_count = summary["ungrounded"]
         ungrounded_fields = summary["ungrounded_fields"]
-
-        # If there are ungrounded fields, we'll carry this forward as evidence
+        
+        # Filter out reasonable defaults from ungrounded fields
+        # These are common parameter values that are reasonable defaults
+        reasonable_defaults = {
+            'units': ['metric', 'imperial', 'celsius', 'fahrenheit'],
+            'format': ['json', 'xml', 'csv', 'txt'],
+            'language': ['english', 'en', 'english', 'spanish', 'es'],
+            'encoding': ['utf-8', 'ascii'],
+            'sort': ['asc', 'desc', 'ascending', 'descending'],
+            'limit': [10, 20, 50, 100],  # Common pagination limits
+        }
+        
+        # Check if ungrounded fields have reasonable default values
+        filtered_ungrounded_fields = []
+        for field in ungrounded_fields:
+            field_value = step.tool_input.get(field)
+            is_reasonable_default = False
+            
+            # Check if field name matches known default categories
+            for default_category, default_values in reasonable_defaults.items():
+                if default_category in field.lower():
+                    if field_value in default_values:
+                        is_reasonable_default = True
+                        break
+            
+            # Also check for small numeric values that might be reasonable defaults
+            if isinstance(field_value, (int, float)) and 0 <= field_value <= 100:
+                is_reasonable_default = True
+            
+            if not is_reasonable_default:
+                filtered_ungrounded_fields.append(field)
+        
+        # Update counts with filtered results
+        filtered_ungrounded_count = len(filtered_ungrounded_fields)
+        
+        # If there are ungrounded fields after filtering, we'll carry this forward as evidence
         # but don't return yet — this alone isn't enough to confirm failure
         ungrounded_evidence = []
-        if ungrounded_count > 0:
+        if filtered_ungrounded_count > 0:
             # Weight per ungrounded field, cap at 0.80 total
-            per_field_weight = min(0.50, 0.80 / max(1, ungrounded_count))
-            total_weight = min(0.80, per_field_weight * ungrounded_count)
+            per_field_weight = min(0.50, 0.80 / max(1, filtered_ungrounded_count))
+            total_weight = min(0.80, per_field_weight * filtered_ungrounded_count)
 
-            for field in ungrounded_fields:
+            for field in filtered_ungrounded_fields:
                 ungrounded_evidence.append(
                     Evidence(
                         detection_stage="3.1 - Grounding Analysis",
@@ -533,7 +567,7 @@ class ToolUseDetector(BaseDetector):
             tool_input_str = str(step.tool_input)
             thought_input_sim = self.embeddings.similarity(thought_str, tool_input_str)
 
-            if thought_input_sim < 0.5 and ungrounded_count > 0:
+            if thought_input_sim < 0.5 and filtered_ungrounded_count > 0:
                 # Both conditions met: thought doesn't match input, AND values are ungrounded
                 # Use simple average of evidence contributions
                 avg_confidence = (0.70 + sum(e.confidence_contribution for e in ungrounded_evidence)) / (1 + len(ungrounded_evidence))
@@ -590,8 +624,8 @@ class ToolUseDetector(BaseDetector):
             )
 
         # Verdict == "uncertain"
-        if ungrounded_count > 0:
-            # Some ungrounded fields exist, LLM is uncertain
+        if filtered_ungrounded_count > 0:
+            # Some ungrounded fields exist (after filtering out reasonable defaults), LLM is uncertain
             llm_conf = 0.10
             if ungrounded_evidence:
                 grounding_conf = sum(e.confidence_contribution for e in ungrounded_evidence) / len(ungrounded_evidence)
@@ -608,10 +642,10 @@ class ToolUseDetector(BaseDetector):
                         detection_stage="3.3 - LLM Fallback",
                         signal="llm_uncertain_with_ungrounded",
                         confidence_contribution=llm_conf,
-                        explanation=f"LLM judge was uncertain, but {ungrounded_count} field(s) could not be grounded",
+                        explanation=f"LLM judge was uncertain, but {filtered_ungrounded_count} field(s) could not be grounded",
                     )
                 ],
-                reason=f"LLM judge was uncertain, but {ungrounded_count} parameter(s) could not be traced to the task or prior outputs",
+                reason=f"LLM judge was uncertain, but {filtered_ungrounded_count} parameter(s) could not be traced to the task or prior outputs",
                 detection_stage="3.3",
                 fix_direction="Review parameter values and ensure they can be traced to the task or prior tool outputs",
             )

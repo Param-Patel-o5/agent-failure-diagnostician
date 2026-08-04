@@ -106,12 +106,48 @@ class GroundingAnalyzer:
                     "confidence": 0.75,  # derived values carry slightly less confidence
                 }
 
+        # Step 3.5: Check if value is a reasonable default for hallucination detection
+        if GroundingAnalyzer._is_reasonable_default(str_value):
+            return {
+                "classification": "derived",  # Treat reasonable defaults as derived
+                "source": "reasonable_default",
+                "confidence": 0.85,  # High confidence for reasonable defaults
+            }
+
         # Step 4: Nothing found -- ungrounded
         return {
             "classification": "ungrounded",
             "source": None,
             "confidence": 0.0,
         }
+
+    @staticmethod
+    def _is_reasonable_default(value: str) -> bool:
+        """Check if a value is a reasonable default that shouldn't be considered hallucination"""
+        value_lower = value.lower()
+        
+        # Common status/reason values
+        reasonable_defaults = {
+            # Request/action reasons
+            'customer_request', 'user_request', 'manual_request', 'admin_request',
+            'system_request', 'automatic', 'scheduled', 'maintenance',
+            
+            # Common statuses
+            'active', 'inactive', 'pending', 'completed', 'failed', 'success',
+            'enabled', 'disabled', 'true', 'false', 'yes', 'no',
+            
+            # Common formats/units
+            'json', 'xml', 'csv', 'pdf', 'txt', 'html',
+            'metric', 'imperial', 'celsius', 'fahrenheit', 'usd', 'eur', 'inr',
+            
+            # Language codes  
+            'en', 'english', 'us', 'uk', 'in',
+            
+            # Common defaults
+            'default', 'standard', 'normal', 'basic', 'premium',
+        }
+        
+        return value_lower in reasonable_defaults
 
     @staticmethod
     def _fuzzy_match(value: str, source: str) -> float:

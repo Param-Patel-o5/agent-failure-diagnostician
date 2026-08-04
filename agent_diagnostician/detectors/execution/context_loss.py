@@ -31,7 +31,7 @@ class ContextLossDetector(BaseDetector):
 
     # Thresholds
     LOW_SIMILARITY_THRESHOLD = 0.40   # Thought vs prior context
-    MIN_CONFIDENCE_THRESHOLD = 0.40   # Minimum confidence to report failure per step
+    MIN_CONFIDENCE_THRESHOLD = 0.30   # Minimum confidence to report failure per step (lowered from 0.40)
     MAX_CONFIDENCE = 0.92             # Cap for step-level confidence score
 
     def __init__(self, llm_judge: LLMJudge | None = None):
@@ -130,38 +130,71 @@ class ContextLossDetector(BaseDetector):
             if s.step_index < step.step_index and s.tool_output is not None
         ]
         
-        # Check if prior successful calls exist for same tool_name
-        prior_same_tool = [
-            s for s in trace.steps
-            if s.tool_name == step.tool_name
-            and s.step_index < step.step_index
-        ]
-        
-        # Only proceed if this tool was called successfully before
-        if not prior_same_tool:
+        # Skip if no prior context exists (early steps)
+        if not prior_outputs:
             return 0.0
         
         # Call grounding analyzer
         grounding_results = GroundingAnalyzer.analyze(step.tool_input, trace.task, prior_outputs)
         summary = GroundingAnalyzer.summarize(grounding_results)
         
-        # Context loss signal fires when fields are ungrounded AND prior calls exist
+        # Context loss signal fires when fields are ungrounded despite having prior context
         if summary.get('ungrounded', 0) > 0:
-            ungrounded_ratio = summary['ungrounded'] / max(1, summary['total_fields'])
-            context_loss_score = min(0.50, ungrounded_ratio * 0.60)
-            
+            # Check if any ungrounded values COULD have been derived from prior context
+            # This is key: if agent had the right value available but used wrong one
             ungrounded_fields = summary.get('ungrounded_fields', [])
-            evidence.append(
-                Evidence(
-                    detection_stage="1 - Tool Input vs Running Context",
-                    signal="context_dropped_in_tool_input",
-                    confidence_contribution=context_loss_score,
-                    explanation=f"Step {step.step_index}: {summary['ungrounded']} field(s) ({ungrounded_fields}) cannot be traced to task or prior outputs, but this tool was called successfully before — values may have been dropped from context",
+            
+            # Look for potential context loss: values that should be traceable but aren't
+            context_loss_evidence = []
+            for field_name in ungrounded_fields:
+                field_value = step.tool_input.get(field_name)
+                if field_value and self._should_be_traceable(field_name, field_value, prior_outputs):
+                    context_loss_evidence.append(field_name)
+            
+            if context_loss_evidence:
+                ungrounded_ratio = len(context_loss_evidence) / max(1, summary['total_fields'])
+                context_loss_score = min(0.60, ungrounded_ratio * 0.70)
+                
+                evidence.append(
+                    Evidence(
+                        detection_stage="1 - Tool Input vs Running Context",
+                        signal="context_dropped_in_tool_input",
+                        confidence_contribution=context_loss_score,
+                        explanation=f"Step {step.step_index}: field(s) {context_loss_evidence} cannot be traced to task or prior outputs, but similar values were available in prior context — agent may have dropped established values",
+                    )
                 )
-            )
-            return context_loss_score
+                return context_loss_score
         
         return 0.0
+    
+    def _should_be_traceable(self, field_name: str, field_value: Any, prior_outputs: list[Any]) -> bool:
+        """Check if a field value should be traceable to prior outputs based on field name and prior context"""
+        field_str = str(field_value)
+        
+        # Check if this looks like an ID field that should be consistent
+        id_like_fields = {'user_id', 'customer_id', 'account_id', 'order_id', 'id', 'uuid'}
+        if any(id_field in field_name.lower() for id_field in id_like_fields):
+            # For ID fields, check if prior outputs contained similar ID field names
+            for output in prior_outputs:
+                if isinstance(output, dict):
+                    # Check if the same field name exists in prior outputs with a different value
+                    if field_name in output and str(output[field_name]) != field_str:
+                        return True  # Same field name, different value = context loss
+                    # Check if any similar ID field exists in prior outputs
+                    for key in output.keys():
+                        if any(id_field in key.lower() for id_field in id_like_fields):
+                            return True
+        
+        # Check if this is a specific identifier format that appeared in prior steps
+        if len(field_str) > 3 and ('-' in field_str or '_' in field_str):
+            # Look for similar pattern identifiers in prior outputs
+            for output in prior_outputs:
+                output_str = GroundingAnalyzer._flatten_to_str(output)
+                # If prior outputs contain similar identifier patterns, this should be traceable
+                if any(char in output_str for char in ['-', '_']) and len(output_str) > 10:
+                    return True
+        
+        return False
 
     def _check_thought_contradiction(
         self, step: Step, trace: AgentTrace, evidence: list[Evidence]

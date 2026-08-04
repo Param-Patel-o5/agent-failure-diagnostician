@@ -162,54 +162,90 @@ class ConstraintExtractor:
         Returns:
             {
                 'satisfied': bool,
-                'reason': str
+                'reason': str,
+                'insufficient_evidence': bool (optional)
             }
         """
+        # Handle empty/null output - return insufficient evidence
+        if actual_value is None:
+            return {
+                "satisfied": False,
+                "reason": f"Cannot validate constraint '{constraint['raw']}': output is empty/null",
+                "insufficient_evidence": True
+            }
+        
         subtype = constraint["subtype"]
         expected = constraint["value"]
+        actual_str = str(actual_value)
 
         # Numeric validation
         if constraint["type"] == "numeric":
-            try:
-                actual = float(str(actual_value).replace(",", ""))
-            except (ValueError, TypeError):
+            # Extract numeric values from the output text instead of parsing the whole thing
+            import re
+            numbers = re.findall(r'[\d,]+\.?\d*', actual_str.replace(",", ""))
+            
+            if not numbers:
                 return {
                     "satisfied": False,
-                    "reason": f"Could not extract numeric value from actual output '{actual_value}'",
+                    "reason": f"Could not find any numeric values in output to validate '{constraint['raw']}'",
+                    "insufficient_evidence": True
                 }
+            
+            # For word count constraints, count words
+            if constraint.get('unit') == 'words' or 'word' in constraint['raw'].lower():
+                word_count = len(actual_str.split())
+                actual_numeric = float(word_count)
+            # For metrics/items constraints, try to count items mentioned
+            elif 'metric' in constraint['raw'].lower() or 'data point' in constraint['raw'].lower():
+                # Count metrics, bullet points, or numbered items
+                metrics_count = len(re.findall(r'[-*•]\s*\*?\*?[^-*•\n]+|\d+\.\s*[^0-9\n]+', actual_str))
+                if metrics_count == 0:
+                    # Fallback: count lines that look like data
+                    metrics_count = len([line for line in actual_str.split('\n') if ':' in line or '-' in line])
+                actual_numeric = float(metrics_count)
+            else:
+                # Use the largest number found (most likely to be the relevant value)
+                try:
+                    actual_numeric = max(float(num.replace(",", "")) for num in numbers)
+                except ValueError:
+                    return {
+                        "satisfied": False,
+                        "reason": f"Could not parse numeric values from output for '{constraint['raw']}'",
+                        "insufficient_evidence": True
+                    }
 
             checks = {
-                "less_than":          actual < expected,
-                "less_than_equal":    actual <= expected,
-                "greater_than":       actual > expected,
-                "greater_than_equal": actual >= expected,
-                "equal":              abs(actual - expected) < 0.01,
+                "less_than":          actual_numeric < expected,
+                "less_than_equal":    actual_numeric <= expected,
+                "greater_than":       actual_numeric > expected,
+                "greater_than_equal": actual_numeric >= expected,
+                "equal":              abs(actual_numeric - expected) < 0.01,
             }
             passed = checks.get(subtype, True)
             return {
                 "satisfied": passed,
-                "reason": f"Numeric constraint '{constraint['raw']}': actual={actual}, expected {subtype} {expected}",
+                "reason": f"Numeric constraint '{constraint['raw']}': found {actual_numeric}, expected {subtype} {expected} - {'✓' if passed else '✗'}",
             }
 
         # Categorical validation -- check if value/keyword appears in output
         if constraint["type"] == "categorical":
-            actual_str = str(actual_value).lower()
+            actual_lower = actual_str.lower()
             value_lower = str(expected).lower()
 
             if subtype == "must_use":
-                satisfied = value_lower in actual_str
+                satisfied = value_lower in actual_lower
                 return {
                     "satisfied": satisfied,
                     "reason": f"Categorical constraint 'must use {expected}': {'found' if satisfied else 'not found'} in output",
                 }
             elif subtype == "must_not_use":
-                satisfied = value_lower not in actual_str
+                satisfied = value_lower not in actual_lower
                 return {
                     "satisfied": satisfied,
                     "reason": f"Categorical constraint 'must not use {expected}': {'not found (ok)' if satisfied else 'found in output (violation)'}",
                 }
             elif subtype == "keep_unchanged":
-                satisfied = value_lower in actual_str
+                satisfied = value_lower in actual_lower
                 return {
                     "satisfied": satisfied,
                     "reason": f"Categorical constraint 'keep {expected} unchanged': {'present' if satisfied else 'missing or changed'} in output",
@@ -217,9 +253,24 @@ class ConstraintExtractor:
 
         # Structural validation -- check if format keyword appears in output
         if constraint["type"] == "structural":
-            actual_str = str(actual_value).lower()
+            actual_lower = actual_str.lower()
             value_lower = str(expected).lower()
-            satisfied = value_lower in actual_str
+            
+            # Special handling for different formats
+            if value_lower == "json":
+                # Check for JSON-like structure
+                satisfied = ('{' in actual_str and '}' in actual_str) or 'json' in actual_lower
+            elif value_lower == "markdown":
+                # Check for markdown indicators
+                satisfied = any(indicator in actual_str for indicator in ['#', '**', '*', '-', '`']) or 'markdown' in actual_lower
+            elif value_lower == "table":
+                # Check for table-like structure
+                satisfied = ('|' in actual_str or 'table' in actual_lower or 
+                           len([line for line in actual_str.split('\n') if ':' in line or '|' in line]) >= 2)
+            else:
+                # Default: simple keyword search
+                satisfied = value_lower in actual_lower
+                
             return {
                 "satisfied": satisfied,
                 "reason": f"Structural constraint '{constraint['raw']}': {'detected' if satisfied else 'not detected'} in output",

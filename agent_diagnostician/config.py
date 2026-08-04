@@ -10,7 +10,7 @@ EMBEDDING_MODEL = "all-MiniLM-L6-v2"  # local, free, no API needed
 
 # ── LLM Judge ─────────────────────────────────────────────────────────────
 LLM_PROVIDER = "gemini"               # "gemini" | "openai" | "mock"
-LLM_MODEL = "gemini-2.0-flash"
+LLM_MODEL = "models/gemini-2.5-flash"
 
 # ── Confidence Thresholds ──────────────────────────────────────────────────
 # These map 0-1 scores to ConfidenceBand labels.

@@ -25,9 +25,9 @@ class PrematureTerminationDetector(BaseDetector):
     """
 
     # Similarity thresholds
-    TASK_OUTPUT_SIM_THRESHOLD = 0.45  # Below this = low similarity signal
-    TASK_INPUTS_SIM_THRESHOLD = 0.45  # Below this = low coverage signal
-    MIN_CONFIDENCE_THRESHOLD = 0.35   # Minimum confidence to report failure
+    TASK_OUTPUT_SIM_THRESHOLD = 0.30  # Below this = low similarity signal (lowered from 0.45)
+    TASK_INPUTS_SIM_THRESHOLD = 0.30  # Below this = low coverage signal (lowered from 0.45)
+    MIN_CONFIDENCE_THRESHOLD = 0.50   # Minimum confidence to report failure (raised from 0.35)
     MAX_CONFIDENCE = 0.92             # Cap for final confidence score
 
     def __init__(self, llm_judge: LLMJudge | None = None):
@@ -58,6 +58,19 @@ class PrematureTerminationDetector(BaseDetector):
                 evidence=[],
                 reason="No steps to analyze",
                 detection_stage="premature_termination_pipeline",
+                fix_direction=None,
+            )
+        
+        # CRITICAL: Only check for premature termination if the agent actually claimed success
+        # If the agent failed or is incomplete, this is NOT premature termination
+        if trace.status not in ["success", "completed"]:
+            return self.build_result(
+                failure_type=FailureType.PREMATURE_TERMINATION,
+                subtype=PrematureTerminationSubtype.NO_PREMATURE_TERMINATION.value,
+                confidence_score=0.0,
+                evidence=[],
+                reason=f"Task status '{trace.status}' is not successful completion - premature termination only applies to successful tasks",
+                detection_stage="premature_termination_pipeline", 
                 fix_direction=None,
             )
 
