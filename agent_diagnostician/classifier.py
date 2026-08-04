@@ -29,7 +29,9 @@ from agent_diagnostician.detectors.planning.tool_use import ToolUseDetector
 from agent_diagnostician.detectors.planning.goal_failure import GoalFailureDetector
 from agent_diagnostician.detectors.planning.hallucination import HallucinationDetector
 from agent_diagnostician.detectors.execution.token_exhaustion import TokenExhaustionDetector
+from agent_diagnostician.detectors.execution.context_loss import ContextLossDetector
 from agent_diagnostician.detectors.termination.infinite_loop import InfiniteLoopDetector
+from agent_diagnostician.detectors.termination.premature_termination import PrematureTerminationDetector
 
 # Priority order — lower index = higher priority when scores are tied
 DETECTOR_PRIORITY = [
@@ -128,11 +130,11 @@ class Classifier:
         if FailureType.INFINITE_LOOP in self.enabled_detectors:
             detectors.append(InfiniteLoopDetector(llm_judge=self.llm_judge))
 
-        # Future detectors — uncomment when built
-        # if FailureType.CONTEXT_LOSS in self.enabled_detectors:
-        #     detectors.append(ContextLossDetector(llm_judge=self.llm_judge))
-        # if FailureType.PREMATURE_TERMINATION in self.enabled_detectors:
-        #     detectors.append(PrematureTerminationDetector(llm_judge=self.llm_judge))
+        if FailureType.CONTEXT_LOSS in self.enabled_detectors:
+            detectors.append(ContextLossDetector(llm_judge=self.llm_judge))
+
+        if FailureType.PREMATURE_TERMINATION in self.enabled_detectors:
+            detectors.append(PrematureTerminationDetector(llm_judge=self.llm_judge))
 
         return detectors
 

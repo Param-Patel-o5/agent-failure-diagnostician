@@ -47,6 +47,7 @@ DEFAULT_ENABLED_DETECTORS = [
     FailureType.HALLUCINATION,
     FailureType.TOKEN_EXHAUSTION,
     FailureType.INFINITE_LOOP,
+    FailureType.PREMATURE_TERMINATION,
 ]
 
 # Map FailureType to detector class name for dynamic instantiation.
@@ -56,10 +57,10 @@ DETECTOR_MAPPING = {
     FailureType.GOAL_SATISFACTION_FAILURE: "GoalFailureDetector",
     FailureType.HALLUCINATION: "HallucinationDetector",
     FailureType.TOKEN_EXHAUSTION: "TokenExhaustionDetector",
+    FailureType.CONTEXT_LOSS: "ContextLossDetector",
     FailureType.INFINITE_LOOP: "InfiniteLoopDetector",
+    FailureType.PREMATURE_TERMINATION: "PrematureTerminationDetector",
     # Future detectors — uncomment when built
-    # FailureType.CONTEXT_LOSS: "ContextLossDetector",
-    # FailureType.PREMATURE_TERMINATION: "PrematureTerminationDetector",
 }
 
 # ── Output Settings ────────────────────────────────────────────────────────
