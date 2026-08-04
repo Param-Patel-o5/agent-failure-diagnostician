@@ -20,6 +20,68 @@ from typing import Any
 from agent_diagnostician.models.trace import AgentTrace, Step, ToolSpec
 
 
+def create_classifier_with_preset(
+    preset: str = "all",
+    llm_judge: object | None = None,
+) -> object:
+    """Create a Classifier with a common preset configuration.
+    
+    Args:
+        preset: One of:
+            - "all": Run all detectors (default)
+            - "deterministic_only": Skip LLM-heavy detectors (only TokenExhaustion)
+            - "cheap": Run only deterministic detectors (TokenExhaustion)
+            - "expensive": Run all, including all LLM calls
+            - "cost_conscious": Run all except Hallucination (most LLM-heavy)
+        llm_judge: LLMJudge instance (optional)
+        
+    Returns:
+        Classifier instance with appropriate enabled_detectors
+        
+    Raises:
+        ValueError: If preset name is unknown
+    """
+    from agent_diagnostician.models.enums import FailureType
+    from agent_diagnostician.classifier import Classifier
+
+    presets = {
+        "all": [
+            FailureType.TOOL_USE_FAILURE,
+            FailureType.GOAL_SATISFACTION_FAILURE,
+            FailureType.HALLUCINATION,
+            FailureType.TOKEN_EXHAUSTION,
+        ],
+        "cheap": [
+            FailureType.TOKEN_EXHAUSTION,
+        ],
+        "cost_conscious": [
+            FailureType.TOOL_USE_FAILURE,
+            FailureType.GOAL_SATISFACTION_FAILURE,
+            FailureType.TOKEN_EXHAUSTION,
+        ],
+        "deterministic_only": [
+            FailureType.TOKEN_EXHAUSTION,
+        ],
+        "expensive": [
+            FailureType.TOOL_USE_FAILURE,
+            FailureType.GOAL_SATISFACTION_FAILURE,
+            FailureType.HALLUCINATION,
+            FailureType.TOKEN_EXHAUSTION,
+        ],
+    }
+
+    if preset not in presets:
+        raise ValueError(
+            f"Unknown preset: {preset}. "
+            f"Valid options: {list(presets.keys())}"
+        )
+
+    return Classifier(
+        llm_judge=llm_judge,
+        enabled_detectors=presets[preset],
+    )
+
+
 def load_fixture(fixture_path: str) -> AgentTrace:
     """Load a test fixture JSON file and convert it to an AgentTrace.
     

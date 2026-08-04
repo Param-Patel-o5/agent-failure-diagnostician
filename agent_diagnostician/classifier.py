@@ -1,23 +1,17 @@
 # Agent diagnostic classifier module
 # classifier.py
-# Runs every detector against a trace and returns the single most
+# Runs selected detectors against a trace and returns the single most
 # confident diagnosis. Does NO analysis itself -- only aggregates
 # DetectionResult objects from detectors and applies tiebreaking logic.
 #
-# Priority order (used as tiebreaker when confidence scores are equal):
-#   1. Tool Use Failure         (most specific, step-level, deterministic checks)
-#   2. Goal Satisfaction Failure (outcome-level, deterministic constraint checks)
-#   3. Context Loss             (execution-level, multi-step pattern)
-#   4. Token Exhaustion         (execution-level, metric-based)
-#   5. Premature Termination    (termination-level)
-#   6. Infinite Loop            (termination-level, pattern across steps)
-#   7. Hallucination            (last — most LLM-dependent, least deterministic)
-#
-# Planning failures outrank execution and termination because they are
-# root causes -- execution/termination failures are often consequences.
+# Users can control which detectors run via enabled_detectors parameter:
+#   - Pass a list of FailureType enums to run only those detectors
+#   - Pass None (default) to run all detectors defined in DEFAULT_ENABLED_DETECTORS
+#   - This lets users skip expensive LLM-dependent detectors when not needed
 
+from typing import Optional, Set, List
 from agent_diagnostician.models.trace import AgentTrace
-from agent_diagnostician.models.result import DetectionResult
+from agent_diagnostician.models.result import DetectionResult, Evidence
 from agent_diagnostician.models.enums import (
     FailureType,
     ConfidenceBand,
@@ -27,6 +21,9 @@ from agent_diagnostician.models.enums import (
     TokenExhaustionSubtype,
 )
 from agent_diagnostician.analysis.llm_judge import LLMJudge, MockLLMJudge
+from agent_diagnostician.config import DEFAULT_ENABLED_DETECTORS, DETECTOR_MAPPING
+
+# Import detectors
 from agent_diagnostician.detectors.planning.tool_use import ToolUseDetector
 from agent_diagnostician.detectors.planning.goal_failure import GoalFailureDetector
 from agent_diagnostician.detectors.planning.hallucination import HallucinationDetector
@@ -62,43 +59,83 @@ NO_FAILURE_SUBTYPES = {
 
 
 class Classifier:
-    """Runs all detectors and returns the single most confident diagnosis.
+    """Runs selected detectors and returns the single most confident diagnosis.
     
-    Usage:
+    Usage with default detectors:
         classifier = Classifier()
         result = classifier.diagnose(trace)
     
-    Inject a real LLMJudge for production:
-        classifier = Classifier(llm_judge=GeminiLLMJudge())
+    Usage with selective detectors:
+        classifier = Classifier(enabled_detectors=[FailureType.TOKEN_EXHAUSTION])
+        result = classifier.diagnose(trace)
+    
+    Inject a real LLM judge for production:
+        classifier = Classifier(llm_judge=GeminiLLMJudge(), enabled_detectors=[...])
     """
 
-    def __init__(self, llm_judge: LLMJudge | None = None):
-        """Initialize all detectors with the same LLM judge instance.
-        One LLMJudge shared across all detectors — no duplicate model loads.
+    def __init__(
+        self,
+        llm_judge: LLMJudge | None = None,
+        enabled_detectors: Optional[List[FailureType]] = None,
+    ):
+        """Initialize classifier with optional detector selection.
         
         Args:
             llm_judge: LLM judge implementation. Defaults to MockLLMJudge.
+            enabled_detectors: Optional list of FailureType enums to run.
+                              If None, uses DEFAULT_ENABLED_DETECTORS from config.
+        
+        Raises:
+            ValueError: If any detector type in enabled_detectors is unknown.
         """
         self.llm_judge = llm_judge or MockLLMJudge()
+        self.enabled_detectors = enabled_detectors or DEFAULT_ENABLED_DETECTORS
 
-        # Only Tool Use and Goal Failure are implemented so far.
-        # Add remaining detectors here as they are built — no other
-        # changes needed in this file.
-        self.detectors = [
-            ToolUseDetector(llm_judge=self.llm_judge),
-            GoalFailureDetector(llm_judge=self.llm_judge),
-            HallucinationDetector(llm_judge=self.llm_judge),
-            TokenExhaustionDetector(),  # no LLM — purely metric/heuristic based
-            # ContextLossDetector(llm_judge=self.llm_judge),         # not yet built
-            # PrematureTerminationDetector(llm_judge=self.llm_judge), # not yet built
-            # InfiniteLoopDetector(llm_judge=self.llm_judge),         # not yet built
-        ]
+        # Validate that all requested detectors exist
+        for detector_type in self.enabled_detectors:
+            if detector_type not in DETECTOR_MAPPING:
+                raise ValueError(
+                    f"Unknown detector type: {detector_type}. "
+                    f"Valid options: {list(DETECTOR_MAPPING.keys())}"
+                )
+
+        # Instantiate only the enabled detectors
+        self.detectors = self._build_detectors()
+
+        # Track which detectors ran (for debugging/logging)
+        self.ran_detectors: Set[str] = set()
+
+    def _build_detectors(self) -> List:
+        """Build detector instances based on enabled_detectors list."""
+        detectors = []
+
+        if FailureType.TOOL_USE_FAILURE in self.enabled_detectors:
+            detectors.append(ToolUseDetector(llm_judge=self.llm_judge))
+
+        if FailureType.GOAL_SATISFACTION_FAILURE in self.enabled_detectors:
+            detectors.append(GoalFailureDetector(llm_judge=self.llm_judge))
+
+        if FailureType.HALLUCINATION in self.enabled_detectors:
+            detectors.append(HallucinationDetector(llm_judge=self.llm_judge))
+
+        if FailureType.TOKEN_EXHAUSTION in self.enabled_detectors:
+            detectors.append(TokenExhaustionDetector())  # No LLM judge
+
+        # Future detectors — uncomment when built
+        # if FailureType.CONTEXT_LOSS in self.enabled_detectors:
+        #     detectors.append(ContextLossDetector(llm_judge=self.llm_judge))
+        # if FailureType.PREMATURE_TERMINATION in self.enabled_detectors:
+        #     detectors.append(PrematureTerminationDetector(llm_judge=self.llm_judge))
+        # if FailureType.INFINITE_LOOP in self.enabled_detectors:
+        #     detectors.append(InfiniteLoopDetector(llm_judge=self.llm_judge))
+
+        return detectors
 
     def diagnose(self, trace: AgentTrace) -> DetectionResult:
-        """Run all detectors and return the single best diagnosis.
+        """Run all enabled detectors and return the single best diagnosis.
         
         Selection logic:
-        1. Run every detector.
+        1. Run every enabled detector.
         2. Filter out NO_FAILURE and INSUFFICIENT_EVIDENCE results.
         3. If no failures detected → return NO_FAILURE.
         4. If one failure detected → return it.
@@ -112,14 +149,15 @@ class Classifier:
             Single DetectionResult representing the most likely root cause
         """
         all_results = []
+        self.ran_detectors.clear()
 
         for detector in self.detectors:
+            detector_name = detector.__class__.__name__
             result = detector.detect(trace)
             all_results.append(result)
+            self.ran_detectors.add(detector_name)
 
         # Filter to only real failures — exclude no-failure and insufficient-evidence
-        # results from every detector. NO_FAILURE_SUBTYPES is derived from enums
-        # directly so it can never drift out of sync with detector output values.
         failures = [
             r for r in all_results
             if r.subtype not in NO_FAILURE_SUBTYPES
@@ -154,16 +192,25 @@ class Classifier:
 
     def _no_failure_result(self) -> DetectionResult:
         """Build a clean NO_FAILURE result when no detector fired."""
-        from agent_diagnostician.models.result import Evidence
+        evidence = []
+        if self.ran_detectors:
+            evidence.append(
+                Evidence(
+                    detection_stage="all_detectors_passed",
+                    signal="all_enabled_detectors",
+                    confidence_contribution=1.0,
+                    explanation=f"All {len(self.ran_detectors)} enabled detectors passed: {', '.join(sorted(self.ran_detectors))}",
+                )
+            )
 
         return DetectionResult(
             failure_type=FailureType.NONE,
             subtype="no_failure",
             confidence_score=1.0,
             confidence_band=ConfidenceBand.CONFIRMED,
-            evidence=[],
-            reason="No failure detected across all detectors",
-            fix_direction="No fix required",
-            detection_stage="none",
+            evidence=evidence,
+            reason="No failure detected across all enabled detectors.",
+            fix_direction=None,
+            detection_stage="classifier_aggregation",
             secondary_evidence=None,
         )

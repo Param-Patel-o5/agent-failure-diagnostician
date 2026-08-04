@@ -3,6 +3,8 @@
 # Global configuration for Agent Failure Diagnostician.
 # Change settings here without touching detector or analysis code.
 
+from agent_diagnostician.models.enums import FailureType
+
 # ── Embedding Model ────────────────────────────────────────────────────────
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"  # local, free, no API needed
 
@@ -33,6 +35,31 @@ GROUNDING_FUZZY_THRESHOLD = 0.80
 
 # Minimum confidence to report secondary evidence in GoalFailureDetector.
 SECONDARY_EVIDENCE_THRESHOLD = 0.30
+
+# ── Detector Selection ─────────────────────────────────────────────────────
+# Default detectors to run if none specified.
+# Users can override this per call via Classifier(enabled_detectors=[...]).
+# This list controls which detectors run by default and also provides the
+# mapping from FailureType to detector class for dynamic instantiation.
+DEFAULT_ENABLED_DETECTORS = [
+    FailureType.TOOL_USE_FAILURE,
+    FailureType.GOAL_SATISFACTION_FAILURE,
+    FailureType.HALLUCINATION,
+    FailureType.TOKEN_EXHAUSTION,
+]
+
+# Map FailureType to detector class name for dynamic instantiation.
+# When adding new detectors, add an entry here and uncomment in Classifier._build_detectors()
+DETECTOR_MAPPING = {
+    FailureType.TOOL_USE_FAILURE: "ToolUseDetector",
+    FailureType.GOAL_SATISFACTION_FAILURE: "GoalFailureDetector",
+    FailureType.HALLUCINATION: "HallucinationDetector",
+    FailureType.TOKEN_EXHAUSTION: "TokenExhaustionDetector",
+    # Future detectors — uncomment when built
+    # FailureType.CONTEXT_LOSS: "ContextLossDetector",
+    # FailureType.PREMATURE_TERMINATION: "PrematureTerminationDetector",
+    # FailureType.INFINITE_LOOP: "InfiniteLoopDetector",
+}
 
 # ── Output Settings ────────────────────────────────────────────────────────
 DEFAULT_OUTPUT_FORMAT = "cli"         # "cli" | "json" | "markdown"
