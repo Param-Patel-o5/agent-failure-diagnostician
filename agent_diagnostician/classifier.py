@@ -19,6 +19,7 @@ from agent_diagnostician.models.enums import (
     GoalFailureSubtype,
     HallucinationSubtype,
     TokenExhaustionSubtype,
+    InfiniteLoopSubtype,
 )
 from agent_diagnostician.analysis.llm_judge import LLMJudge, MockLLMJudge
 from agent_diagnostician.config import DEFAULT_ENABLED_DETECTORS, DETECTOR_MAPPING
@@ -28,6 +29,7 @@ from agent_diagnostician.detectors.planning.tool_use import ToolUseDetector
 from agent_diagnostician.detectors.planning.goal_failure import GoalFailureDetector
 from agent_diagnostician.detectors.planning.hallucination import HallucinationDetector
 from agent_diagnostician.detectors.execution.token_exhaustion import TokenExhaustionDetector
+from agent_diagnostician.detectors.termination.infinite_loop import InfiniteLoopDetector
 
 # Priority order — lower index = higher priority when scores are tied
 DETECTOR_PRIORITY = [
@@ -50,10 +52,12 @@ NO_FAILURE_SUBTYPES = {
     GoalFailureSubtype.NO_FAILURE.value,         # "no_goal_failure"
     HallucinationSubtype.NO_HALLUCINATION.value, # "no_hallucination"
     TokenExhaustionSubtype.NO_TOKEN_EXHAUSTION.value,  # "no_token_exhaustion"
+    InfiniteLoopSubtype.NO_INFINITE_LOOP.value,  # "no_infinite_loop"
     ToolUseSubtype.INSUFFICIENT_EVIDENCE.value,
     GoalFailureSubtype.INSUFFICIENT_EVIDENCE.value,
     HallucinationSubtype.INSUFFICIENT_EVIDENCE.value,
     TokenExhaustionSubtype.INSUFFICIENT_EVIDENCE.value,
+    InfiniteLoopSubtype.INSUFFICIENT_EVIDENCE.value,
     "none",  # classifier's own _no_failure_result subtype
 }
 
@@ -121,13 +125,14 @@ class Classifier:
         if FailureType.TOKEN_EXHAUSTION in self.enabled_detectors:
             detectors.append(TokenExhaustionDetector())  # No LLM judge
 
+        if FailureType.INFINITE_LOOP in self.enabled_detectors:
+            detectors.append(InfiniteLoopDetector(llm_judge=self.llm_judge))
+
         # Future detectors — uncomment when built
         # if FailureType.CONTEXT_LOSS in self.enabled_detectors:
         #     detectors.append(ContextLossDetector(llm_judge=self.llm_judge))
         # if FailureType.PREMATURE_TERMINATION in self.enabled_detectors:
         #     detectors.append(PrematureTerminationDetector(llm_judge=self.llm_judge))
-        # if FailureType.INFINITE_LOOP in self.enabled_detectors:
-        #     detectors.append(InfiniteLoopDetector(llm_judge=self.llm_judge))
 
         return detectors
 

@@ -39,6 +39,15 @@ class HallucinationSubtype(str, Enum):
     INSUFFICIENT_EVIDENCE = "insufficient_evidence"
 
 
+class InfiniteLoopSubtype(str, Enum):
+    DEGRADED_SUCCESS = "degraded_success"
+    EXACT_REPETITION = "exact_repetition"
+    STUCK_ON_FAILURE = "stuck_on_failure"
+    REASONING_LOOP = "reasoning_loop"
+    NO_INFINITE_LOOP = "no_infinite_loop"
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"
+
+
 class ConfidenceBand(str, Enum):
     CONFIRMED = "confirmed"
     LIKELY = "likely"
