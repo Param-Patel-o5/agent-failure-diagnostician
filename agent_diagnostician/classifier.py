@@ -171,6 +171,9 @@ class Classifier:
             and r.confidence_band != ConfidenceBand.INSUFFICIENT_EVIDENCE
         ]
 
+        # Store all failures for multi-failure summary
+        self.all_failures = failures
+
         # No failures detected
         if not failures:
             return self._no_failure_result()
@@ -196,6 +199,38 @@ class Classifier:
 
         failures.sort(key=sort_key)
         return failures[0]
+
+    def get_all_failures(self) -> list:
+        """Get all detected failures, not just the primary one.
+        
+        Returns:
+            List of all DetectionResults that indicated failures
+        """
+        return getattr(self, 'all_failures', [])
+
+    def get_detector_status(self) -> dict:
+        """Get status of which detectors ran vs were skipped.
+        
+        Returns:
+            Dict with 'ran' and 'skipped' lists of detector names
+        """
+        all_detector_names = {
+            "ToolUseDetector",
+            "GoalFailureDetector", 
+            "HallucinationDetector",
+            "TokenExhaustionDetector",
+            "ContextLossDetector",
+            "InfiniteLoopDetector",
+            "PrematureTerminationDetector",
+        }
+        
+        ran = list(self.ran_detectors)
+        skipped = list(all_detector_names - self.ran_detectors)
+        
+        return {
+            "ran": ran,
+            "skipped": skipped,
+        }
 
     def _no_failure_result(self) -> DetectionResult:
         """Build a clean NO_FAILURE result when no detector fired."""

@@ -1,0 +1,16 @@
+You are evaluating whether an AI agent selected the correct tool for a task.
+
+Task: {task}{thought_str}
+Tool selected: {selected_tool}
+
+Available tools:
+{tools_str}
+
+Was the selected tool appropriate for this task?
+
+Respond ONLY with a JSON object, no explanation outside it:
+{{
+  "verdict": "correct" or "incorrect" or "uncertain",
+  "confidence": <float between 0 and 1>,
+  "reason": "<one sentence explanation>"
+}}

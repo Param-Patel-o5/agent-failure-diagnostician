@@ -1,0 +1,18 @@
+You are evaluating whether an AI agent successfully completed the task it was given.
+
+Task: {task}{thought_str}{score_str}
+
+Steps taken:
+{steps_str}
+
+Final output: {final_output}
+
+Did the agent solve the correct task? Or did it solve a different problem,
+misinterpret the task, or produce a logically incorrect result?
+
+Respond ONLY with a JSON object:
+{{
+  "verdict": "correct" or "misinterpreted" or "uncertain",
+  "confidence": <float between 0 and 1>,
+  "reason": "<one sentence>"
+}}

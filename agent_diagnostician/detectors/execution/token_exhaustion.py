@@ -23,9 +23,16 @@ from agent_diagnostician.utils.text import fuzzy_match
 MODEL_TOKEN_LIMITS: dict[str, int] = {
     "gpt-4o":            128_000,
     "gpt-4-turbo":       128_000,
+    "gpt-4":               8_192,  # Original GPT-4
+    "gpt-4-32k":          32_768,  # GPT-4 with larger context
     "gpt-3.5-turbo":      16_385,
+    "claude-3-opus":     200_000,
+    "claude-3-sonnet":   200_000,
+    "claude-3-haiku":    200_000,
     "claude-3-5-sonnet": 200_000,
     "claude-sonnet-4":   200_000,
+    "gemini-pro":        128_000,  # Gemini 1.0 Pro
+    "gemini-1.0":        128_000,  # Gemini 1.0 family
     "gemini-2.0":      1_000_000,
     "gemini-1.5":      1_000_000,
 }

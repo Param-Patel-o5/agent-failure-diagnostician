@@ -110,10 +110,12 @@ class ToolUseDetector(BaseDetector):
                 return False
 
         # Common success signals — if present, skip this step
-        success_keys = {"logged", "success", "ok", "created", "completed", "write_success", "updated",
-                        "recorded", "confirmed"}
-        if any(k in step.tool_output for k in success_keys):
-            return True
+        # Only check if tool_output exists and is a dict
+        if isinstance(step.tool_output, dict):
+            success_keys = {"logged", "success", "ok", "created", "completed", "write_success", "updated",
+                            "recorded", "confirmed"}
+            if any(k in step.tool_output for k in success_keys):
+                return True
 
         # Default: don't skip, analyze the step
         return False

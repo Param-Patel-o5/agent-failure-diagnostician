@@ -29,30 +29,54 @@ class Reporter:
     """Formats and prints DetectionResult in various output formats."""
 
     @staticmethod
-    def report(result: DetectionResult, format: str = "cli") -> str:
+    def confidence_explanation(confidence_score: float, confidence_band: str) -> str:
+        """Convert confidence score to plain English explanation.
+        
+        Args:
+            confidence_score: Numeric confidence (0.0-1.0)
+            confidence_band: ConfidenceBand enum value
+            
+        Returns:
+            Human-readable explanation of what this confidence means
+        """
+        if confidence_band == "confirmed":
+            return f"Very high confidence ({confidence_score:.0%}) — multiple strong signals detected"
+        elif confidence_band == "likely": 
+            return f"High confidence ({confidence_score:.0%}) — clear evidence found"
+        elif confidence_band == "maybe":
+            return f"Moderate confidence ({confidence_score:.0%}) — some evidence found, but not definitive" 
+        elif confidence_band == "insufficient_evidence":
+            return f"Low confidence ({confidence_score:.0%}) — limited evidence available"
+        else:
+            return f"Confidence: {confidence_score:.0%}"
+
+    @staticmethod
+    def report(result: DetectionResult, format: str = "cli", detector_status: dict = None, all_failures: list = None) -> str:
         """Format a DetectionResult into a string.
         
         Args:
             result: DetectionResult from any detector or classifier
             format: "cli" | "json" | "markdown"
+            detector_status: Optional dict with 'ran' and 'skipped' lists of detector names
+            all_failures: Optional list of all DetectionResults that detected failures
         
         Returns:
             Formatted string ready to print or write to file
         """
         if format == "json":
-            return Reporter.to_json(result)
+            return Reporter.to_json(result, detector_status, all_failures)
         elif format == "markdown":
-            return Reporter.to_markdown(result)
+            return Reporter.to_markdown(result, detector_status, all_failures)
         else:
-            return Reporter.to_cli(result)
+            return Reporter.to_cli(result, detector_status, all_failures)
 
     @staticmethod
-    def print(result: DetectionResult, format: str = "cli") -> None:
+    def print(result: DetectionResult, format: str = "cli", detector_status: dict = None, all_failures: list = None) -> None:
         """Format and print a DetectionResult to stdout."""
-        print(Reporter.report(result, format))
+        print(Reporter.report(result, format, detector_status, all_failures))
 
     @staticmethod
-    def to_cli(result: DetectionResult) -> str:
+    def to_cli(result: DetectionResult, detector_status: dict = None, all_failures: list = None) -> str:
         """Format result as colored CLI output."""
         color = BAND_COLORS.get(result.confidence_band, RESET)
         lines = []
@@ -64,9 +88,38 @@ class Reporter:
         # Primary verdict
         lines.append(f"{BOLD}Failure Type:{RESET}  {color}{result.failure_type.value}{RESET}")
         lines.append(f"{BOLD}Subtype:{RESET}       {color}{result.subtype}{RESET}")
-        lines.append(f"{BOLD}Confidence:{RESET}    {color}{result.confidence_score:.2f} ({result.confidence_band.value}){RESET}")
+        
+        # Confidence with explanation
+        confidence_explanation = Reporter.confidence_explanation(result.confidence_score, result.confidence_band.value)
+        lines.append(f"{BOLD}Confidence:{RESET}    {color}{confidence_explanation}{RESET}")
         lines.append(f"{BOLD}Stage:{RESET}         {result.detection_stage}")
         lines.append("")
+
+        # Multi-failure summary (if multiple failures detected)
+        if all_failures and len(all_failures) > 1:
+            lines.append(f"{BOLD}Multiple Failures Detected:{RESET}")
+            # Sort by confidence, show all above threshold
+            sorted_failures = sorted(all_failures, key=lambda f: f.confidence_score, reverse=True)
+            for i, failure in enumerate(sorted_failures):
+                is_primary = failure.failure_type == result.failure_type and failure.subtype == result.subtype
+                marker = f"{GREEN}→{RESET}" if is_primary else f"{YELLOW}•{RESET}"
+                lines.append(f"  {marker} {failure.failure_type.value} - {failure.subtype} ({failure.confidence_score:.2f})")
+            lines.append("")
+
+        # Detector status (if provided)
+        if detector_status:
+            ran = detector_status.get('ran', [])
+            skipped = detector_status.get('skipped', [])
+            
+            if ran:
+                lines.append(f"{BOLD}Detectors Ran:{RESET}")
+                lines.append(f"  {GREEN}✓{RESET} " + f", {GREEN}✓{RESET} ".join(ran))
+                lines.append("")
+            
+            if skipped:
+                lines.append(f"{BOLD}Detectors Skipped:{RESET}")
+                lines.append(f"  {YELLOW}−{RESET} " + f", {YELLOW}−{RESET} ".join(skipped))
+                lines.append("")
 
         # Reason and fix
         lines.append(f"{BOLD}Reason:{RESET}")
@@ -99,7 +152,7 @@ class Reporter:
         return "\n".join(lines)
 
     @staticmethod
-    def to_json(result: DetectionResult) -> str:
+    def to_json(result: DetectionResult, detector_status: dict = None, all_failures: list = None) -> str:
         """Format result as JSON string."""
         data = {
             "failure_type": result.failure_type.value,
@@ -124,10 +177,27 @@ class Reporter:
                 "reason": result.secondary_evidence.reason,
             } if result.secondary_evidence else None,
         }
+        
+        # Add detector status if provided
+        if detector_status:
+            data["detector_status"] = detector_status
+        
+        # Add all failures if provided
+        if all_failures:
+            data["all_failures"] = [
+                {
+                    "failure_type": f.failure_type.value,
+                    "subtype": f.subtype,
+                    "confidence_score": f.confidence_score,
+                    "confidence_band": f.confidence_band.value,
+                }
+                for f in all_failures
+            ]
+        
         return json.dumps(data, indent=2)
 
     @staticmethod
-    def to_markdown(result: DetectionResult) -> str:
+    def to_markdown(result: DetectionResult, detector_status: dict = None, all_failures: list = None) -> str:
         """Format result as Markdown — useful for reports or GitHub issues."""
         lines = []
 
@@ -139,6 +209,29 @@ class Reporter:
         lines.append(f"| **Confidence** | {result.confidence_score:.2f} — *{result.confidence_band.value}* |")
         lines.append(f"| **Detection Stage** | {result.detection_stage} |")
         lines.append("")
+
+        # Multi-failure summary (if multiple failures detected)
+        if all_failures and len(all_failures) > 1:
+            lines.append("### All Detected Failures\n")
+            sorted_failures = sorted(all_failures, key=lambda f: f.confidence_score, reverse=True)
+            lines.append("| Failure Type | Subtype | Confidence | Primary |")
+            lines.append("|---|---|---|---|")
+            for failure in sorted_failures:
+                is_primary = failure.failure_type == result.failure_type and failure.subtype == result.subtype
+                primary_marker = "✓" if is_primary else ""
+                lines.append(f"| `{failure.failure_type.value}` | `{failure.subtype}` | {failure.confidence_score:.2f} | {primary_marker} |")
+            lines.append("")
+
+        # Detector status (if provided)
+        if detector_status:
+            ran = detector_status.get('ran', [])
+            skipped = detector_status.get('skipped', [])
+            
+            lines.append("### Detector Status\n")
+            if ran:
+                lines.append("**Ran:** " + ", ".join(f"`{d}`" for d in ran) + "\n")
+            if skipped:
+                lines.append("**Skipped:** " + ", ".join(f"`{d}`" for d in skipped) + "\n")
 
         lines.append(f"### Reason\n{result.reason}\n")
 

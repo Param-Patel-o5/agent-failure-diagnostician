@@ -8,6 +8,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 import json
+import os
 
 
 # ─── Abstract Interface ────────────────────────────────────────────────────────
@@ -17,6 +18,29 @@ class LLMJudge(ABC):
     Detectors only ever call these methods -- never the provider directly.
     Swapping Gemini for GPT or Claude means writing a new subclass here,
     nothing else changes."""
+
+    @staticmethod
+    def _load_prompt(prompt_name: str) -> str:
+        """Load a prompt template from the prompts directory.
+        
+        Args:
+            prompt_name: Name of prompt file (without .txt extension)
+            
+        Returns:
+            Prompt template string
+            
+        Raises:
+            FileNotFoundError: If prompt file doesn't exist
+        """
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        prompts_dir = os.path.join(os.path.dirname(current_dir), "prompts")
+        prompt_path = os.path.join(prompts_dir, f"{prompt_name}.txt")
+        
+        if not os.path.exists(prompt_path):
+            raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
+        
+        with open(prompt_path, 'r', encoding='utf-8') as f:
+            return f.read().strip()
 
     @abstractmethod
     def evaluate_wrong_tool(
@@ -187,22 +211,14 @@ class GeminiLLMJudge(LLMJudge):
         )
         thought_str = f"\nAgent's reasoning: {thought}" if thought else ""
 
-        prompt = f"""You are evaluating whether an AI agent selected the correct tool for a task.
-
-Task: {task}{thought_str}
-Tool selected: {selected_tool}
-
-Available tools:
-{tools_str}
-
-Was the selected tool appropriate for this task?
-
-Respond ONLY with a JSON object, no explanation outside it:
-{{
-  "verdict": "correct" or "incorrect" or "uncertain",
-  "confidence": <float between 0 and 1>,
-  "reason": "<one sentence explanation>"
-}}"""
+        # Load prompt template and format it
+        template = self._load_prompt("tool_selection")
+        prompt = template.format(
+            task=task,
+            thought_str=thought_str,
+            selected_tool=selected_tool,
+            tools_str=tools_str
+        )
 
         raw = self._call(prompt)
         return self._parse_json(raw)
@@ -288,24 +304,15 @@ Respond ONLY with a JSON object:
         thought_str = f"\nAgent's reasoning: {thought}" if thought else ""
         score_str = f"\nSemantic similarity (task vs output): {embedding_score:.2f}" if embedding_score is not None else ""
 
-        prompt = f"""You are evaluating whether an AI agent successfully completed the task it was given.
-
-Task: {task}{thought_str}{score_str}
-
-Steps taken:
-{steps_str}
-
-Final output: {json.dumps(final_output)}
-
-Did the agent solve the correct task? Or did it solve a different problem,
-misinterpret the task, or produce a logically incorrect result?
-
-Respond ONLY with a JSON object:
-{{
-  "verdict": "correct" or "misinterpreted" or "uncertain",
-  "confidence": <float between 0 and 1>,
-  "reason": "<one sentence>"
-}}"""
+        # Load prompt template and format it
+        template = self._load_prompt("goal_alignment")
+        prompt = template.format(
+            task=task,
+            thought_str=thought_str,
+            score_str=score_str,
+            steps_str=steps_str,
+            final_output=json.dumps(final_output)
+        )
 
         raw = self._call(prompt)
         return self._parse_json(raw)
@@ -322,6 +329,9 @@ Respond ONLY with a JSON object:
             f"Step {i} output: {json.dumps(o)}"
             for i, o in enumerate(prior_outputs)
         )
+        if not prior_str:
+            prior_str = "None"
+            
         thought_str = f"\nAgent's reasoning: {thought}" if thought else ""
         tools_str = "\n".join(
             f"- {t['name']}: {t.get('description', '')}"
@@ -329,34 +339,15 @@ Respond ONLY with a JSON object:
         )
         tools_section = f"\nAvailable tools:\n{tools_str}" if tools_str else ""
 
-        prompt = f"""You are evaluating whether an AI agent hallucinated values in its tool call or reasoning.
-
-Task: {task}{thought_str}{tools_section}
-
-Prior tool outputs available to the agent:
-{prior_str if prior_str else "None"}
-
-Parameters the agent passed to the tool:
-{json.dumps(tool_input, indent=2)}
-
-Hallucination means the agent used specific values (IDs, names, numbers,
-facts) that cannot be traced to the task or any prior tool output, and
-are not reasonable defaults for the tool type.
-
-Note: common defaults like "metric", "json", "true", "en" are not
-hallucinations even if not in the task. Specific identifiers like
-flight IDs, order numbers, user IDs that appear nowhere in context
-ARE hallucinations.
-
-How confident are you (0.0 to 1.0) that the agent hallucinated?
-0.0 = definitely not hallucinated
-1.0 = definitely hallucinated
-
-Respond ONLY with a JSON object:
-{{
-  "confidence": <float between 0 and 1>,
-  "reason": "<one sentence explanation>"
-}}"""
+        # Load prompt template and format it
+        template = self._load_prompt("hallucination_detection")
+        prompt = template.format(
+            task=task,
+            thought_str=thought_str,
+            tools_section=tools_section,
+            prior_str=prior_str,
+            tool_input=json.dumps(tool_input, indent=2)
+        )
 
         raw = self._call(prompt)
         return self._parse_json(raw)
