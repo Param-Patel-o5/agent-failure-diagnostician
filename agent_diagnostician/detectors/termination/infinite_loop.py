@@ -17,8 +17,20 @@ from typing import Any
 from agent_diagnostician.detectors.base import BaseDetector
 from agent_diagnostician.models.trace import AgentTrace, Step
 from agent_diagnostician.models.result import DetectionResult, Evidence
-from agent_diagnostician.models.enums import FailureType, InfiniteLoopSubtype
-from agent_diagnostician.analysis.llm_judge import LLMJudge, MockLLMJudge
+from agent_diagnostician.models.enums import (
+    FailureType,
+    InfiniteLoopSubtype,
+    TRACE_SUCCESS_STATUSES,
+    STEP_FAILURE_STATUSES,
+)
+from agent_diagnostician.config import (
+    INFINITE_LOOP_ERROR_RATIO_THRESHOLD,
+    INFINITE_LOOP_INPUT_SIMILARITY_THRESHOLD,
+    INFINITE_LOOP_MIN_CALLS,
+    INFINITE_LOOP_MIN_RATIO,
+    INFINITE_LOOP_THOUGHT_SIMILARITY_THRESHOLD,
+)
+from agent_diagnostician.analysis.llm import LLMJudge, MockLLMJudge
 from agent_diagnostician.analysis.embeddings import EmbeddingMatcher
 from agent_diagnostician.utils.text import fuzzy_match
 
@@ -35,26 +47,26 @@ class InfiniteLoopDetector(BaseDetector):
         5. INSUFFICIENT_EVIDENCE (loop suspected but can't classify)
     """
 
-    # Minimum thresholds for loop detection
-    MIN_LOOP_CALLS = 3        # Same tool must be called at least this many times
-    MIN_LOOP_RATIO = 0.40     # Loop calls must represent at least this % of total steps
+    # Minimum thresholds for loop detection (see config.py)
+    MIN_LOOP_CALLS = INFINITE_LOOP_MIN_CALLS
+    MIN_LOOP_RATIO = INFINITE_LOOP_MIN_RATIO
+    INPUT_SIMILARITY_THRESHOLD = INFINITE_LOOP_INPUT_SIMILARITY_THRESHOLD
+    ERROR_RATIO_THRESHOLD = INFINITE_LOOP_ERROR_RATIO_THRESHOLD
+    THOUGHT_SIMILARITY_THRESHOLD = INFINITE_LOOP_THOUGHT_SIMILARITY_THRESHOLD
 
-    # Similarity thresholds for subtype decisions
-    INPUT_SIMILARITY_THRESHOLD = 0.85  # Fuzzy match threshold for exact repetition
-    ERROR_RATIO_THRESHOLD = 0.60       # Majority of loop steps must have errors
-    THOUGHT_SIMILARITY_THRESHOLD = 0.85  # Embedding similarity for reasoning loop
-
-    def __init__(self, llm_judge: LLMJudge | None = None):
+    def __init__(
+        self,
+        llm_judge: LLMJudge | None = None,
+        embedding_matcher: EmbeddingMatcher | None = None,
+    ):
         """Initialize detector with optional LLM judge and EmbeddingMatcher.
         
         Args:
             llm_judge: Optional LLM judge implementation. Defaults to MockLLMJudge.
-                      Currently not used by this detector but kept for consistency.
+            embedding_matcher: Shared embedding matcher for lazy-loaded analysis.
         """
         self.llm_judge = llm_judge or MockLLMJudge()
-        # Initialize EmbeddingMatcher once for thought similarity analysis
-        # Only create if needed to avoid expensive initialization for simple cases
-        self._embedding_matcher = None
+        self._embedding_matcher = embedding_matcher
 
     @property
     def embedding_matcher(self) -> EmbeddingMatcher:
@@ -191,14 +203,46 @@ class InfiniteLoopDetector(BaseDetector):
             if count >= self.MIN_LOOP_CALLS:
                 ratio = count / total_steps
                 if ratio >= self.MIN_LOOP_RATIO:
-                    return {
-                        "tool_name": tool_name,
-                        "step_indices": tool_indices[tool_name],
-                        "count": count,
-                        "ratio": ratio,
-                    }
+                    loop_steps = [
+                        s for s in trace.steps
+                        if hasattr(s, "tool_name") and s.tool_name == tool_name
+                    ]
+                    input_sim = self._compute_input_similarity(loop_steps)
+                    error_ratio = self._compute_error_ratio(loop_steps)
+                    thought_sim = self._compute_thought_similarity_from_steps(loop_steps)
+                    if (
+                        input_sim >= self.INPUT_SIMILARITY_THRESHOLD
+                        or error_ratio >= self.ERROR_RATIO_THRESHOLD
+                        or (
+                            thought_sim is not None
+                            and thought_sim >= self.THOUGHT_SIMILARITY_THRESHOLD
+                        )
+                    ):
+                        return {
+                            "tool_name": tool_name,
+                            "step_indices": tool_indices[tool_name],
+                            "count": count,
+                            "ratio": ratio,
+                        }
         
         return None
+
+    @staticmethod
+    def _step_failed(step: Step) -> bool:
+        if hasattr(step, "step_status") and step.step_status in STEP_FAILURE_STATUSES:
+            return True
+        if hasattr(step, "error_message") and step.error_message is not None:
+            return True
+        if hasattr(step, "tool_output") and isinstance(step.tool_output, dict):
+            if "error" in step.tool_output:
+                return True
+        return False
+
+    def _compute_error_ratio(self, loop_steps: list[Step]) -> float:
+        if not loop_steps:
+            return 0.0
+        error_count = sum(1 for step in loop_steps if self._step_failed(step))
+        return error_count / len(loop_steps)
 
     def _collect_evidence(self, trace: AgentTrace, loop_info: dict) -> dict:
         """Collect all evidence signals for the detected loop.
@@ -229,17 +273,7 @@ class InfiniteLoopDetector(BaseDetector):
         input_similarity = self._compute_input_similarity(loop_steps)
         
         # B. Error Analysis
-        error_count = 0
-        for step in loop_steps:
-            # Check multiple error indicators
-            if hasattr(step, 'step_status') and step.step_status in ("error", "failed"):
-                error_count += 1
-            elif hasattr(step, 'error_message') and step.error_message is not None:
-                error_count += 1
-            elif hasattr(step, 'tool_output') and step.tool_output is None:
-                error_count += 1
-        
-        error_ratio = error_count / len(loop_steps) if loop_steps else 0.0
+        error_ratio = self._compute_error_ratio(loop_steps)
         
         # C. Thought Similarity (Tier 3, only compute if needed and available)
         thoughts = []
@@ -256,7 +290,7 @@ class InfiniteLoopDetector(BaseDetector):
         
         # D. Task Completion
         task_completed = (
-            hasattr(trace, 'status') and trace.status == "completed" and
+            hasattr(trace, 'status') and trace.status in TRACE_SUCCESS_STATUSES and
             hasattr(trace, 'final_output') and trace.final_output is not None
         )
         
@@ -281,13 +315,18 @@ class InfiniteLoopDetector(BaseDetector):
         if len(loop_steps) < 2:
             return 1.0  # Single call = identical to itself
         
-        # Convert tool_inputs to strings, handling missing inputs gracefully
+        # Convert tool_inputs to value-focused strings (ignore shared key names).
         input_strings = []
         for step in loop_steps:
-            if hasattr(step, 'tool_input') and step.tool_input is not None:
-                input_strings.append(str(step.tool_input))
+            if hasattr(step, "tool_input") and step.tool_input is not None:
+                if isinstance(step.tool_input, dict):
+                    input_strings.append(
+                        " ".join(str(v) for v in step.tool_input.values())
+                    )
+                else:
+                    input_strings.append(str(step.tool_input))
             else:
-                input_strings.append("")  # Empty string for missing inputs
+                input_strings.append("")
         
         if len(input_strings) < 2:
             return 1.0  # Not enough valid inputs to compare
@@ -304,6 +343,13 @@ class InfiniteLoopDetector(BaseDetector):
                     similarities.append(0.0)
         
         return sum(similarities) / len(similarities) if similarities else 1.0
+
+    def _compute_thought_similarity_from_steps(self, loop_steps: list[Step]) -> float | None:
+        thoughts = []
+        for step in loop_steps:
+            if hasattr(step, "thought") and step.thought and str(step.thought).strip():
+                thoughts.append(str(step.thought).strip())
+        return self._compute_thought_similarity(thoughts)
 
     def _compute_thought_similarity(self, thoughts: list[str]) -> float:
         """Compute average semantic similarity between thoughts.
@@ -349,8 +395,8 @@ class InfiniteLoopDetector(BaseDetector):
         
         Priority order (stop on first match):
         1. DEGRADED_SUCCESS     — task completed but via loops
-        2. EXACT_REPETITION     — inputs nearly identical
-        3. STUCK_ON_FAILURE     — majority of loop steps failed
+        2. STUCK_ON_FAILURE     — majority of loop steps failed (even if inputs match)
+        3. EXACT_REPETITION     — inputs nearly identical, not failure-dominated
         4. REASONING_LOOP       — thoughts are repetitive
         5. INSUFFICIENT_EVIDENCE — loop suspected but unclear
         
@@ -361,16 +407,34 @@ class InfiniteLoopDetector(BaseDetector):
         Returns:
             (subtype, confidence, reason) tuple
         """
-        # 1. DEGRADED_SUCCESS (highest priority if task completed)
-        if evidence.get("task_completed"):
+        # 1. DEGRADED_SUCCESS — completed via wasteful identical retries
+        input_sim = evidence.get("input_similarity")
+        error_ratio = evidence.get("error_ratio")
+        if (
+            evidence.get("task_completed")
+            and input_sim is not None
+            and input_sim >= self.INPUT_SIMILARITY_THRESHOLD
+        ):
             return (
                 InfiniteLoopSubtype.DEGRADED_SUCCESS.value,
                 0.80,
-                "Task completed but agent used repetitive tool calls, suggesting a loop",
+                "Task completed but agent used repetitive identical tool calls, suggesting a loop",
             )
 
-        # 2. EXACT_REPETITION (most concrete evidence)
-        input_sim = evidence.get("input_similarity")
+        # 2. STUCK_ON_FAILURE — failure-dominated loop monopolizing the trace
+        loop_ratio = loop_info.get("ratio", 0)
+        if (
+            error_ratio is not None
+            and error_ratio >= self.ERROR_RATIO_THRESHOLD
+            and loop_ratio >= 0.75
+        ):
+            return (
+                InfiniteLoopSubtype.STUCK_ON_FAILURE.value,
+                0.75,
+                "Agent kept retrying the same tool despite repeated failures",
+            )
+
+        # 3. EXACT_REPETITION — identical inputs without failure-dominated pattern
         if input_sim is not None and input_sim >= self.INPUT_SIMILARITY_THRESHOLD:
             return (
                 InfiniteLoopSubtype.EXACT_REPETITION.value,
@@ -378,16 +442,15 @@ class InfiniteLoopDetector(BaseDetector):
                 "Agent made identical tool calls repeatedly with near-identical inputs",
             )
 
-        # 3. STUCK_ON_FAILURE (majority of attempts failed)
-        error_ratio = evidence.get("error_ratio")
-        if error_ratio is not None and error_ratio >= self.ERROR_RATIO_THRESHOLD:
+        # 5. Legitimate multi-call pattern (varied inputs, task completed)
+        if evidence.get("task_completed"):
             return (
-                InfiniteLoopSubtype.STUCK_ON_FAILURE.value,
+                InfiniteLoopSubtype.NO_INFINITE_LOOP.value,
                 0.75,
-                "Agent kept retrying the same tool despite repeated failures",
+                "Repeated tool use appears intentional — inputs varied and task completed",
             )
 
-        # 4. REASONING_LOOP (thoughts are repetitive)
+        # 5. REASONING_LOOP (thoughts are repetitive)
         thought_sim = evidence.get("thought_similarity")
         if thought_sim is not None and thought_sim >= self.THOUGHT_SIMILARITY_THRESHOLD:
             return (
@@ -396,7 +459,7 @@ class InfiniteLoopDetector(BaseDetector):
                 "Agent's reasoning showed repetitive patterns across loop steps",
             )
 
-        # 5. INSUFFICIENT_EVIDENCE
+        # 6. INSUFFICIENT_EVIDENCE
         return (
             InfiniteLoopSubtype.INSUFFICIENT_EVIDENCE.value,
             0.30,

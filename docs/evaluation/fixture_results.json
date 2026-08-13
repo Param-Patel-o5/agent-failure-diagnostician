@@ -1,0 +1,1707 @@
+{
+  "generated_at": "2026-08-13T06:44:19.077889+00:00",
+  "fixture_count": 60,
+  "passed": 53,
+  "failed": 7,
+  "accuracy_pct": 88.3,
+  "total_elapsed_sec": 251.8,
+  "avg_elapsed_ms": 4189.6,
+  "llm_provider": "gemini",
+  "llm_model": "gemini-3.5-flash-lite",
+  "by_category": {
+    "context_loss": {
+      "total": 6,
+      "passed": 6,
+      "failed": 0,
+      "accuracy_pct": 100.0
+    },
+    "Goal Statisfiction": {
+      "total": 11,
+      "passed": 9,
+      "failed": 2,
+      "accuracy_pct": 81.8
+    },
+    "classifier_e2e": {
+      "total": 5,
+      "passed": 4,
+      "failed": 1,
+      "accuracy_pct": 80.0
+    },
+    "infinite_loop": {
+      "total": 9,
+      "passed": 9,
+      "failed": 0,
+      "accuracy_pct": 100.0
+    },
+    "premature_termination": {
+      "total": 6,
+      "passed": 6,
+      "failed": 0,
+      "accuracy_pct": 100.0
+    },
+    "TOOL_USE FAILURE": {
+      "total": 14,
+      "passed": 10,
+      "failed": 4,
+      "accuracy_pct": 71.4
+    },
+    "HALLUCINATION": {
+      "total": 9,
+      "passed": 9,
+      "failed": 0,
+      "accuracy_pct": 100.0
+    }
+  },
+  "failures": [
+    {
+      "file": "test cases/Goal Statisfiction/Aggregator Edge Cases/goal__aggregator__constraint_primary__misinterpretation_secondary.json",
+      "category": "Goal Statisfiction",
+      "run_id": "run_goal_010",
+      "expected": {
+        "failure_type": "Goal Satisfaction Failure",
+        "subtype": "constraint_violation",
+        "detection_stage": "constraint_validation_with_secondary"
+      },
+      "actual": {
+        "failure_type": "goal_satisfaction_failure",
+        "subtype": "task_misinterpretation",
+        "confidence_score": 0.9,
+        "confidence_band": "confirmed",
+        "detection_stage": "2",
+        "reason": "Agent misinterpreted the task \u2014 execution did not align with the stated goal"
+      },
+      "pass": false,
+      "failure_type_match": true,
+      "subtype_match": false,
+      "elapsed_ms": 1441.8,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 1
+    },
+    {
+      "file": "test cases/Goal Statisfiction/Aggregator Edge Cases/goal__aggregator__misinterpretation_primary__constraint_secondary.json",
+      "category": "Goal Statisfiction",
+      "run_id": "run_goal_011",
+      "expected": {
+        "failure_type": "Goal Satisfaction Failure",
+        "subtype": "task_misinterpretation",
+        "detection_stage": "task_misinterpretation_with_secondary"
+      },
+      "actual": {
+        "failure_type": "goal_satisfaction_failure",
+        "subtype": "constraint_violation",
+        "confidence_score": 0.9,
+        "confidence_band": "confirmed",
+        "detection_stage": "1",
+        "reason": "Agent violated 1 explicit constraint(s) from the task"
+      },
+      "pass": false,
+      "failure_type_match": true,
+      "subtype_match": false,
+      "elapsed_ms": 1117.1,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 2
+    },
+    {
+      "file": "test cases/infinite_loop_and_e2e_traces/classifier_e2e/e2e__equal_confidence__priority_tiebreaker.json",
+      "category": "classifier_e2e",
+      "run_id": "run_e2e_002",
+      "expected": {
+        "failure_type": "goal_satisfaction_failure",
+        "subtype": "task_misinterpretation",
+        "detection_stage": "2"
+      },
+      "actual": {
+        "failure_type": "hallucination",
+        "subtype": "hallucination_detected",
+        "confidence_score": 0.7975,
+        "confidence_band": "likely",
+        "detection_stage": "hallucination_pipeline",
+        "reason": "The agent passed 'Jane Doe' and 'Data Analyst' to the tool, but the task specifically requested scheduling a meeting for candidate 'John Smith' for the 'Software Engineer' role."
+      },
+      "pass": false,
+      "failure_type_match": false,
+      "subtype_match": false,
+      "elapsed_ms": 52733.8,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 32
+    },
+    {
+      "file": "test cases/TOOL_USE FAILURE/Invalid Parameters/invalid_parameters__llm_fallback__first_call_edge_case.json",
+      "category": "TOOL_USE FAILURE",
+      "run_id": "run_ip_003",
+      "expected": {
+        "failure_type": "Tool Use Failure",
+        "subtype": "Valid Tool, Invalid Parameters",
+        "detection_stage": "3 - LLM Fallback (Edge Case: First/Only Call)"
+      },
+      "actual": {
+        "failure_type": "tool_use_failure",
+        "subtype": "wrong_tool_selected",
+        "confidence_score": 0.55,
+        "confidence_band": "maybe",
+        "detection_stage": "3",
+        "reason": "LLM judge determined the selected tool was incorrect: The available tools list is empty, making it impossible for the agent to have selected a valid tool."
+      },
+      "pass": false,
+      "failure_type_match": true,
+      "subtype_match": false,
+      "elapsed_ms": 1013.4,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 55
+    },
+    {
+      "file": "test cases/TOOL_USE FAILURE/Invalid Parameters/invalid_parameters__runtime_inference__multi_step.json",
+      "category": "TOOL_USE FAILURE",
+      "run_id": "run_ip_002",
+      "expected": {
+        "failure_type": "Tool Use Failure",
+        "subtype": "Valid Tool, Invalid Parameters",
+        "detection_stage": "2 - Runtime Schema Inference"
+      },
+      "actual": {
+        "failure_type": "tool_use_failure",
+        "subtype": "wrong_tool_selected",
+        "confidence_score": 0.55,
+        "confidence_band": "maybe",
+        "detection_stage": "3",
+        "reason": "LLM judge determined the selected tool was incorrect: No available tools were provided in the context to evaluate against."
+      },
+      "pass": false,
+      "failure_type_match": true,
+      "subtype_match": false,
+      "elapsed_ms": 808.1,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 56
+    },
+    {
+      "file": "test cases/TOOL_USE FAILURE/Valid Paremeters , wrong values/incorrect_values__llm_fallback__ungrounded_ambiguous.json",
+      "category": "TOOL_USE FAILURE",
+      "run_id": "run_ipv_004",
+      "expected": {
+        "failure_type": "Tool Use Failure",
+        "subtype": "Valid Tool, Incorrect Parameter Values",
+        "detection_stage": "3 - LLM Judge / Embedding Fallback"
+      },
+      "actual": {
+        "failure_type": "tool_use_failure",
+        "subtype": "no_tool_use_failure",
+        "confidence_score": 1.0,
+        "confidence_band": "confirmed",
+        "detection_stage": "none",
+        "reason": "All steps passed tool use validation checks"
+      },
+      "pass": false,
+      "failure_type_match": true,
+      "subtype_match": false,
+      "elapsed_ms": 2707.0,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 59
+    },
+    {
+      "file": "test cases/TOOL_USE FAILURE/Wrong tool selected/wrong_tool_selected__embedding_ranking__negative_control_close_match.json",
+      "category": "TOOL_USE FAILURE",
+      "run_id": "run_wt_004",
+      "expected": {
+        "failure_type": "None",
+        "subtype": "No Tool Use Failure",
+        "detection_stage": "2 - Tool Ranking via Embedding"
+      },
+      "actual": {
+        "failure_type": "tool_use_failure",
+        "subtype": "incorrect_parameter_values",
+        "confidence_score": 0.3,
+        "confidence_band": "maybe",
+        "detection_stage": "3.3",
+        "reason": "LLM judge was uncertain, but 1 parameter(s) could not be traced to the task or prior outputs"
+      },
+      "pass": false,
+      "failure_type_match": false,
+      "subtype_match": false,
+      "elapsed_ms": 48724.1,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 62
+    }
+  ],
+  "results": [
+    {
+      "file": "test cases/context_loss/context_loss__combined_signals__grounding_and_thought.json",
+      "category": "context_loss",
+      "run_id": "run_cl_003",
+      "expected": {
+        "failure_type": "context_loss",
+        "subtype": "context_loss_detected",
+        "detection_stage": "1 - Tool Input vs Running Context"
+      },
+      "actual": {
+        "failure_type": "context_loss",
+        "subtype": "context_loss_detected",
+        "confidence_score": 0.9,
+        "confidence_band": "confirmed",
+        "detection_stage": "context_loss_pipeline",
+        "reason": "Context loss detected at step 4 \u2014 agent dropped or contradicted information from prior steps"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 717.0,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/context_loss/context_loss__grounding__dropped_value.json",
+      "category": "context_loss",
+      "run_id": "run_cl_001",
+      "expected": {
+        "failure_type": "context_loss",
+        "subtype": "context_loss_detected",
+        "detection_stage": "1 - Tool Input vs Running Context"
+      },
+      "actual": {
+        "failure_type": "context_loss",
+        "subtype": "context_loss_detected",
+        "confidence_score": 0.35,
+        "confidence_band": "maybe",
+        "detection_stage": "context_loss_pipeline",
+        "reason": "Context loss detected at step 3 \u2014 agent dropped or contradicted information from prior steps"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 0.4,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/context_loss/context_loss__thought_contradiction__late_step.json",
+      "category": "context_loss",
+      "run_id": "run_cl_002",
+      "expected": {
+        "failure_type": "context_loss",
+        "subtype": "context_loss_detected",
+        "detection_stage": "2 - Thought vs Prior Context"
+      },
+      "actual": {
+        "failure_type": "context_loss",
+        "subtype": "context_loss_detected",
+        "confidence_score": 0.92,
+        "confidence_band": "confirmed",
+        "detection_stage": "context_loss_pipeline",
+        "reason": "Context loss detected at step 4 \u2014 agent dropped or contradicted information from prior steps"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 450.5,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/context_loss/insufficient_evidence__no_thoughts_no_repetition.json",
+      "category": "context_loss",
+      "run_id": "run_cl_006",
+      "expected": {
+        "failure_type": "insufficient_evidence",
+        "subtype": "no_context_loss",
+        "detection_stage": "3 - LLM Fallback"
+      },
+      "actual": {
+        "failure_type": "context_loss",
+        "subtype": "no_context_loss",
+        "confidence_score": 1.0,
+        "confidence_band": "confirmed",
+        "detection_stage": "context_loss_pipeline",
+        "reason": "No context loss detected across all steps"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 1.4,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/context_loss/no_context_loss__correct_carry_forward.json",
+      "category": "context_loss",
+      "run_id": "run_cl_004",
+      "expected": {
+        "failure_type": "none",
+        "subtype": "no_context_loss",
+        "detection_stage": "context_loss_pipeline"
+      },
+      "actual": {
+        "failure_type": "context_loss",
+        "subtype": "no_context_loss",
+        "confidence_score": 1.0,
+        "confidence_band": "confirmed",
+        "detection_stage": "context_loss_pipeline",
+        "reason": "No context loss detected across all steps"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 0.1,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/context_loss/no_context_loss__short_trace.json",
+      "category": "context_loss",
+      "run_id": "run_cl_005",
+      "expected": {
+        "failure_type": "none",
+        "subtype": "no_context_loss",
+        "detection_stage": "context_loss_pipeline"
+      },
+      "actual": {
+        "failure_type": "context_loss",
+        "subtype": "no_context_loss",
+        "confidence_score": 1.0,
+        "confidence_band": "confirmed",
+        "detection_stage": "context_loss_pipeline",
+        "reason": "Trace too short for context loss analysis (need >= 4 steps)"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 0.0,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/Goal Statisfiction/Constraint Violation/goal__constraint_violation__categorical__wrong_language.json",
+      "category": "Goal Statisfiction",
+      "run_id": "run_goal_002",
+      "expected": {
+        "failure_type": "Goal Satisfaction Failure",
+        "subtype": "constraint_violation",
+        "detection_stage": "constraint_validation"
+      },
+      "actual": {
+        "failure_type": "goal_satisfaction_failure",
+        "subtype": "constraint_violation",
+        "confidence_score": 0.5333,
+        "confidence_band": "maybe",
+        "detection_stage": "1",
+        "reason": "Agent violated 4 explicit constraint(s) from the task"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 329.2,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/Goal Statisfiction/Constraint Violation/goal__constraint_violation__numeric__over_limit.json",
+      "category": "Goal Statisfiction",
+      "run_id": "run_goal_001",
+      "expected": {
+        "failure_type": "Goal Satisfaction Failure",
+        "subtype": "constraint_violation",
+        "detection_stage": "constraint_validation"
+      },
+      "actual": {
+        "failure_type": "goal_satisfaction_failure",
+        "subtype": "constraint_violation",
+        "confidence_score": 0.8,
+        "confidence_band": "likely",
+        "detection_stage": "1",
+        "reason": "Agent violated 1 explicit constraint(s) from the task"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 166.4,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/Goal Statisfiction/Constraint Violation/goal__constraint_violation__structural__wrong_format_with_thought.json",
+      "category": "Goal Statisfiction",
+      "run_id": "run_goal_003",
+      "expected": {
+        "failure_type": "Goal Satisfaction Failure",
+        "subtype": "constraint_violation",
+        "detection_stage": "constraint_validation"
+      },
+      "actual": {
+        "failure_type": "goal_satisfaction_failure",
+        "subtype": "constraint_violation",
+        "confidence_score": 0.4,
+        "confidence_band": "maybe",
+        "detection_stage": "1",
+        "reason": "Agent violated 1 explicit constraint(s) from the task"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 366.8,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/Goal Statisfiction/Insufficient Evidence/goal__insufficient_evidence__output_empty.json",
+      "category": "Goal Statisfiction",
+      "run_id": "run_goal_009",
+      "expected": {
+        "failure_type": "Goal Satisfaction Failure",
+        "subtype": "insufficient_evidence",
+        "detection_stage": "constraint_validation"
+      },
+      "actual": {
+        "failure_type": "goal_satisfaction_failure",
+        "subtype": "insufficient_evidence",
+        "confidence_score": 0.1,
+        "confidence_band": "insufficient_evidence",
+        "detection_stage": "1A - Constraint Validation",
+        "reason": "Cannot validate constraints due to empty or inadequate output"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 115.0,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/Goal Statisfiction/No Failure/goal__no_failure__constraints_satisfied.json",
+      "category": "Goal Statisfiction",
+      "run_id": "run_goal_007",
+      "expected": {
+        "failure_type": "Goal Satisfaction Failure",
+        "subtype": "no_failure",
+        "detection_stage": "constraint_validation"
+      },
+      "actual": {
+        "failure_type": "goal_satisfaction_failure",
+        "subtype": "no_goal_failure",
+        "confidence_score": 1.0,
+        "confidence_band": "confirmed",
+        "detection_stage": "none",
+        "reason": "No goal satisfaction issues detected \u2014 agent respected constraints and solved the correct task"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 333.2,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/Goal Statisfiction/No Failure/goal__no_failure__no_constraints__task_correct.json",
+      "category": "Goal Statisfiction",
+      "run_id": "run_goal_008",
+      "expected": {
+        "failure_type": "Goal Satisfaction Failure",
+        "subtype": "no_failure",
+        "detection_stage": "constraint_validation_and_misinterpretation"
+      },
+      "actual": {
+        "failure_type": "goal_satisfaction_failure",
+        "subtype": "no_goal_failure",
+        "confidence_score": 1.0,
+        "confidence_band": "confirmed",
+        "detection_stage": "none",
+        "reason": "No goal satisfaction issues detected \u2014 agent respected constraints and solved the correct task"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 182.2,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/infinite_loop_and_e2e_traces/classifier_e2e/e2e__selective_detectors__token_exhaustion_only.json",
+      "category": "classifier_e2e",
+      "run_id": "run_e2e_005",
+      "expected": {
+        "failure_type": "token_exhaustion",
+        "subtype": "token_exhaustion_detected",
+        "detection_stage": "token_exhaustion_pipeline"
+      },
+      "actual": {
+        "failure_type": "token_exhaustion",
+        "subtype": "token_exhaustion",
+        "confidence_score": 0.9,
+        "confidence_band": "confirmed",
+        "detection_stage": "Part A",
+        "reason": "Explicit token exhaustion error in step 2 error_message: \"Token limit exceeded\""
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 98.0,
+      "error": null,
+      "run_mode": "no_llm"
+    },
+    {
+      "file": "test cases/infinite_loop_and_e2e_traces/infinite_loop/infinite_loop__degraded_success__completed_with_loop.json",
+      "category": "infinite_loop",
+      "run_id": "run_il_006",
+      "expected": {
+        "failure_type": "infinite_loop",
+        "subtype": "degraded_success",
+        "detection_stage": "infinite_loop_pipeline"
+      },
+      "actual": {
+        "failure_type": "infinite_loop",
+        "subtype": "degraded_success",
+        "confidence_score": 0.8,
+        "confidence_band": "likely",
+        "detection_stage": "3 - Subtype Decision",
+        "reason": "Task completed but agent used repetitive identical tool calls, suggesting a loop"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 0.2,
+      "error": null,
+      "run_mode": "no_llm"
+    },
+    {
+      "file": "test cases/infinite_loop_and_e2e_traces/infinite_loop/infinite_loop__exact_repetition__5_calls.json",
+      "category": "infinite_loop",
+      "run_id": "run_il_001",
+      "expected": {
+        "failure_type": "infinite_loop",
+        "subtype": "exact_repetition",
+        "detection_stage": "infinite_loop_pipeline"
+      },
+      "actual": {
+        "failure_type": "infinite_loop",
+        "subtype": "exact_repetition",
+        "confidence_score": 0.9,
+        "confidence_band": "confirmed",
+        "detection_stage": "3 - Subtype Decision",
+        "reason": "Agent made identical tool calls repeatedly with near-identical inputs"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 0.2,
+      "error": null,
+      "run_mode": "no_llm"
+    },
+    {
+      "file": "test cases/infinite_loop_and_e2e_traces/infinite_loop/infinite_loop__exact_repetition__non_continuous.json",
+      "category": "infinite_loop",
+      "run_id": "run_il_002",
+      "expected": {
+        "failure_type": "infinite_loop",
+        "subtype": "exact_repetition",
+        "detection_stage": "infinite_loop_pipeline"
+      },
+      "actual": {
+        "failure_type": "infinite_loop",
+        "subtype": "exact_repetition",
+        "confidence_score": 0.9,
+        "confidence_band": "confirmed",
+        "detection_stage": "3 - Subtype Decision",
+        "reason": "Agent made identical tool calls repeatedly with near-identical inputs"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 0.3,
+      "error": null,
+      "run_mode": "no_llm"
+    },
+    {
+      "file": "test cases/infinite_loop_and_e2e_traces/infinite_loop/infinite_loop__reasoning_loop__identical_thoughts.json",
+      "category": "infinite_loop",
+      "run_id": "run_il_005",
+      "expected": {
+        "failure_type": "infinite_loop",
+        "subtype": "reasoning_loop",
+        "detection_stage": "infinite_loop_pipeline"
+      },
+      "actual": {
+        "failure_type": "infinite_loop",
+        "subtype": "reasoning_loop",
+        "confidence_score": 0.65,
+        "confidence_band": "likely",
+        "detection_stage": "3 - Subtype Decision",
+        "reason": "Agent's reasoning showed repetitive patterns across loop steps"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 595.4,
+      "error": null,
+      "run_mode": "no_llm"
+    },
+    {
+      "file": "test cases/infinite_loop_and_e2e_traces/infinite_loop/infinite_loop__stuck_on_failure__4_errors.json",
+      "category": "infinite_loop",
+      "run_id": "run_il_003",
+      "expected": {
+        "failure_type": "infinite_loop",
+        "subtype": "stuck_on_failure",
+        "detection_stage": "infinite_loop_pipeline"
+      },
+      "actual": {
+        "failure_type": "infinite_loop",
+        "subtype": "stuck_on_failure",
+        "confidence_score": 0.75,
+        "confidence_band": "likely",
+        "detection_stage": "3 - Subtype Decision",
+        "reason": "Agent kept retrying the same tool despite repeated failures"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 0.2,
+      "error": null,
+      "run_mode": "no_llm"
+    },
+    {
+      "file": "test cases/infinite_loop_and_e2e_traces/infinite_loop/infinite_loop__stuck_on_failure__varied_input_all_errors.json",
+      "category": "infinite_loop",
+      "run_id": "run_il_004",
+      "expected": {
+        "failure_type": "infinite_loop",
+        "subtype": "stuck_on_failure",
+        "detection_stage": "infinite_loop_pipeline"
+      },
+      "actual": {
+        "failure_type": "infinite_loop",
+        "subtype": "stuck_on_failure",
+        "confidence_score": 0.75,
+        "confidence_band": "likely",
+        "detection_stage": "3 - Subtype Decision",
+        "reason": "Agent kept retrying the same tool despite repeated failures"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 0.8,
+      "error": null,
+      "run_mode": "no_llm"
+    },
+    {
+      "file": "test cases/infinite_loop_and_e2e_traces/infinite_loop/insufficient_evidence__loop_detected_ambiguous.json",
+      "category": "infinite_loop",
+      "run_id": "run_il_009",
+      "expected": {
+        "failure_type": "insufficient_evidence",
+        "subtype": "no_infinite_loop",
+        "detection_stage": "infinite_loop_pipeline"
+      },
+      "actual": {
+        "failure_type": "infinite_loop",
+        "subtype": "no_infinite_loop",
+        "confidence_score": 1.0,
+        "confidence_band": "confirmed",
+        "detection_stage": "1 - Loop Detection",
+        "reason": "No infinite loop pattern detected"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 0.3,
+      "error": null,
+      "run_mode": "no_llm"
+    },
+    {
+      "file": "test cases/infinite_loop_and_e2e_traces/infinite_loop/no_infinite_loop__below_loop_ratio_threshold.json",
+      "category": "infinite_loop",
+      "run_id": "run_il_008",
+      "expected": {
+        "failure_type": "none",
+        "subtype": "no_infinite_loop",
+        "detection_stage": "infinite_loop_pipeline"
+      },
+      "actual": {
+        "failure_type": "infinite_loop",
+        "subtype": "no_infinite_loop",
+        "confidence_score": 1.0,
+        "confidence_band": "confirmed",
+        "detection_stage": "1 - Loop Detection",
+        "reason": "No infinite loop pattern detected"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 0.2,
+      "error": null,
+      "run_mode": "no_llm"
+    },
+    {
+      "file": "test cases/infinite_loop_and_e2e_traces/infinite_loop/no_infinite_loop__below_min_calls_threshold.json",
+      "category": "infinite_loop",
+      "run_id": "run_il_007",
+      "expected": {
+        "failure_type": "none",
+        "subtype": "no_infinite_loop",
+        "detection_stage": "infinite_loop_pipeline"
+      },
+      "actual": {
+        "failure_type": "infinite_loop",
+        "subtype": "no_infinite_loop",
+        "confidence_score": 1.0,
+        "confidence_band": "confirmed",
+        "detection_stage": "1 - Loop Detection",
+        "reason": "No infinite loop pattern detected"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 0.0,
+      "error": null,
+      "run_mode": "no_llm"
+    },
+    {
+      "file": "test cases/premature_termination/insufficient_evidence__vague_output.json",
+      "category": "premature_termination",
+      "run_id": "run_pt_006",
+      "expected": {
+        "failure_type": "insufficient_evidence",
+        "subtype": "no_premature_termination",
+        "detection_stage": "4 - LLM Fallback"
+      },
+      "actual": {
+        "failure_type": "premature_termination",
+        "subtype": "no_premature_termination",
+        "confidence_score": 0.9,
+        "confidence_band": "confirmed",
+        "detection_stage": "premature_termination_pipeline",
+        "reason": "No premature termination detected"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 147.0,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/premature_termination/no_premature_termination__full_completion.json",
+      "category": "premature_termination",
+      "run_id": "run_pt_004",
+      "expected": {
+        "failure_type": "none",
+        "subtype": "no_premature_termination",
+        "detection_stage": "premature_termination_pipeline"
+      },
+      "actual": {
+        "failure_type": "premature_termination",
+        "subtype": "no_premature_termination",
+        "confidence_score": 0.55,
+        "confidence_band": "maybe",
+        "detection_stage": "premature_termination_pipeline",
+        "reason": "No premature termination detected"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 130.3,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/premature_termination/no_premature_termination__single_step_task.json",
+      "category": "premature_termination",
+      "run_id": "run_pt_005",
+      "expected": {
+        "failure_type": "none",
+        "subtype": "no_premature_termination",
+        "detection_stage": "premature_termination_pipeline"
+      },
+      "actual": {
+        "failure_type": "premature_termination",
+        "subtype": "no_premature_termination",
+        "confidence_score": 0.9,
+        "confidence_band": "confirmed",
+        "detection_stage": "premature_termination_pipeline",
+        "reason": "No premature termination detected"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 124.6,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/premature_termination/premature_termination__failed_steps_terminated.json",
+      "category": "premature_termination",
+      "run_id": "run_pt_003",
+      "expected": {
+        "failure_type": "premature_termination",
+        "subtype": "premature_termination_detected",
+        "detection_stage": "premature_termination_pipeline"
+      },
+      "actual": {
+        "failure_type": "premature_termination",
+        "subtype": "premature_termination_detected",
+        "confidence_score": 0.5,
+        "confidence_band": "maybe",
+        "detection_stage": "premature_termination_pipeline",
+        "reason": "Agent terminated before completing all task requirements"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 174.0,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/premature_termination/premature_termination__low_output_similarity.json",
+      "category": "premature_termination",
+      "run_id": "run_pt_002",
+      "expected": {
+        "failure_type": "premature_termination",
+        "subtype": "premature_termination_detected",
+        "detection_stage": "premature_termination_pipeline"
+      },
+      "actual": {
+        "failure_type": "premature_termination",
+        "subtype": "premature_termination_detected",
+        "confidence_score": 0.5,
+        "confidence_band": "maybe",
+        "detection_stage": "premature_termination_pipeline",
+        "reason": "Agent terminated before completing all task requirements"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 110.6,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/TOOL_USE FAILURE/Invalid Parameters/invalid_parameters__schema_present__primary.json",
+      "category": "TOOL_USE FAILURE",
+      "run_id": "run_ip_001",
+      "expected": {
+        "failure_type": "Tool Use Failure",
+        "subtype": "Valid Tool, Invalid Parameters",
+        "detection_stage": "1 - Official Schema Validation"
+      },
+      "actual": {
+        "failure_type": "tool_use_failure",
+        "subtype": "invalid_parameters",
+        "confidence_score": 0.9,
+        "confidence_band": "confirmed",
+        "detection_stage": "1",
+        "reason": "Tool input does not match the official schema for 'create_shipping_label': Missing required field: weight_kg; Type mismatch on field 'destination_zip': expected string, got integer"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 56.9,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/TOOL_USE FAILURE/Invalid Parameters/no_failure__schema_present.json",
+      "category": "TOOL_USE FAILURE",
+      "run_id": "run_ip_004",
+      "expected": {
+        "failure_type": "None",
+        "subtype": "No Tool Use Failure",
+        "detection_stage": "1 - Official Schema Validation"
+      },
+      "actual": {
+        "failure_type": "tool_use_failure",
+        "subtype": "no_tool_use_failure",
+        "confidence_score": 1.0,
+        "confidence_band": "confirmed",
+        "detection_stage": "none",
+        "reason": "All steps passed tool use validation checks"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 49.5,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/TOOL_USE FAILURE/Valid Paremeters , wrong values/incorrect_values__no_thought__grounding_failure.json",
+      "category": "TOOL_USE FAILURE",
+      "run_id": "run_ipv_002",
+      "expected": {
+        "failure_type": "Tool Use Failure",
+        "subtype": "Valid Tool, Incorrect Parameter Values",
+        "detection_stage": "1 - Grounding Check"
+      },
+      "actual": {
+        "failure_type": "tool_use_failure",
+        "subtype": "incorrect_parameter_values",
+        "confidence_score": 0.3,
+        "confidence_band": "maybe",
+        "detection_stage": "3.3",
+        "reason": "LLM judge was uncertain, but 1 parameter(s) could not be traced to the task or prior outputs"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 0.2,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/TOOL_USE FAILURE/Valid Paremeters , wrong values/incorrect_values__thought_present__intended_vs_actual.json",
+      "category": "TOOL_USE FAILURE",
+      "run_id": "run_ipv_001",
+      "expected": {
+        "failure_type": "Tool Use Failure",
+        "subtype": "Valid Tool, Incorrect Parameter Values",
+        "detection_stage": "2 - Thought Consistency Check"
+      },
+      "actual": {
+        "failure_type": "tool_use_failure",
+        "subtype": "incorrect_parameter_values",
+        "confidence_score": 0.6,
+        "confidence_band": "likely",
+        "detection_stage": "3.2",
+        "reason": "Agent's stated intent (in thought) doesn't match the values it passed, and values cannot be traced to task/prior outputs"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 121.1,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/TOOL_USE FAILURE/Valid Paremeters , wrong values/no_failure__derived_value_grounded.json",
+      "category": "TOOL_USE FAILURE",
+      "run_id": "run_ipv_003",
+      "expected": {
+        "failure_type": "None",
+        "subtype": "No Tool Use Failure",
+        "detection_stage": "1 - Grounding Check"
+      },
+      "actual": {
+        "failure_type": "tool_use_failure",
+        "subtype": "no_tool_use_failure",
+        "confidence_score": 1.0,
+        "confidence_band": "confirmed",
+        "detection_stage": "none",
+        "reason": "All steps passed tool use validation checks"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 0.2,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/TOOL_USE FAILURE/Wrong tool selected/no_failure__tier1_only.json",
+      "category": "TOOL_USE FAILURE",
+      "run_id": "run_wt_006",
+      "expected": {
+        "failure_type": "None",
+        "subtype": "No Tool Use Failure",
+        "detection_stage": "N/A - no stage flags a failure"
+      },
+      "actual": {
+        "failure_type": "tool_use_failure",
+        "subtype": "no_tool_use_failure",
+        "confidence_score": 1.0,
+        "confidence_band": "confirmed",
+        "detection_stage": "none",
+        "reason": "All steps passed tool use validation checks"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 0.2,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/TOOL_USE FAILURE/Wrong tool selected/wrong_tool_selected__embedding_ranking__available_tools_only.json",
+      "category": "TOOL_USE FAILURE",
+      "run_id": "run_wt_003",
+      "expected": {
+        "failure_type": "Tool Use Failure",
+        "subtype": "Wrong Tool Selected",
+        "detection_stage": "2 - Tool Ranking via Embedding"
+      },
+      "actual": {
+        "failure_type": "tool_use_failure",
+        "subtype": "wrong_tool_selected",
+        "confidence_score": 0.6,
+        "confidence_band": "likely",
+        "detection_stage": "2",
+        "reason": "Agent selected tool 'pdf_merge' when a clearly better tool 'ocr_extract' was available"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 126.3,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/TOOL_USE FAILURE/Wrong tool selected/wrong_tool_selected__selection_level__thought_only.json",
+      "category": "TOOL_USE FAILURE",
+      "run_id": "run_wt_002",
+      "expected": {
+        "failure_type": "Tool Use Failure",
+        "subtype": "Wrong Tool Selected",
+        "detection_stage": "1B - Thought vs Tool"
+      },
+      "actual": {
+        "failure_type": "tool_use_failure",
+        "subtype": "wrong_tool_selected",
+        "confidence_score": 0.7,
+        "confidence_band": "likely",
+        "detection_stage": "1B",
+        "reason": "Agent's stated intent (in thought) does not match the selected tool"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 76.4,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/TOOL_USE FAILURE/Wrong tool selected/wrong_tool_selected__thought_level__thought_only.json",
+      "category": "TOOL_USE FAILURE",
+      "run_id": "run_wt_001",
+      "expected": {
+        "failure_type": "Tool Use Failure",
+        "subtype": "Wrong Tool Selected",
+        "detection_stage": "1A - Task vs Thought"
+      },
+      "actual": {
+        "failure_type": "tool_use_failure",
+        "subtype": "wrong_tool_selected",
+        "confidence_score": 0.75,
+        "confidence_band": "likely",
+        "detection_stage": "1A",
+        "reason": "Agent's thought shows it misunderstood the task, leading to wrong tool selection"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 41.5,
+      "error": null,
+      "run_mode": "mock_pass"
+    },
+    {
+      "file": "test cases/Goal Statisfiction/Aggregator Edge Cases/goal__aggregator__constraint_primary__misinterpretation_secondary.json",
+      "category": "Goal Statisfiction",
+      "run_id": "run_goal_010",
+      "expected": {
+        "failure_type": "Goal Satisfaction Failure",
+        "subtype": "constraint_violation",
+        "detection_stage": "constraint_validation_with_secondary"
+      },
+      "actual": {
+        "failure_type": "goal_satisfaction_failure",
+        "subtype": "task_misinterpretation",
+        "confidence_score": 0.9,
+        "confidence_band": "confirmed",
+        "detection_stage": "2",
+        "reason": "Agent misinterpreted the task \u2014 execution did not align with the stated goal"
+      },
+      "pass": false,
+      "failure_type_match": true,
+      "subtype_match": false,
+      "elapsed_ms": 1441.8,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 1
+    },
+    {
+      "file": "test cases/Goal Statisfiction/Aggregator Edge Cases/goal__aggregator__misinterpretation_primary__constraint_secondary.json",
+      "category": "Goal Statisfiction",
+      "run_id": "run_goal_011",
+      "expected": {
+        "failure_type": "Goal Satisfaction Failure",
+        "subtype": "task_misinterpretation",
+        "detection_stage": "task_misinterpretation_with_secondary"
+      },
+      "actual": {
+        "failure_type": "goal_satisfaction_failure",
+        "subtype": "constraint_violation",
+        "confidence_score": 0.9,
+        "confidence_band": "confirmed",
+        "detection_stage": "1",
+        "reason": "Agent violated 1 explicit constraint(s) from the task"
+      },
+      "pass": false,
+      "failure_type_match": true,
+      "subtype_match": false,
+      "elapsed_ms": 1117.1,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 2
+    },
+    {
+      "file": "test cases/Goal Statisfiction/Task Misinterpretation/goal__task_misinterpretation__low_embedding_llm_primary.json",
+      "category": "Goal Statisfiction",
+      "run_id": "run_goal_006",
+      "expected": {
+        "failure_type": "Goal Satisfaction Failure",
+        "subtype": "task_misinterpretation",
+        "detection_stage": "task_misinterpretation_analysis"
+      },
+      "actual": {
+        "failure_type": "goal_satisfaction_failure",
+        "subtype": "task_misinterpretation",
+        "confidence_score": 0.9,
+        "confidence_band": "confirmed",
+        "detection_stage": "2",
+        "reason": "Agent misinterpreted the task \u2014 execution did not align with the stated goal"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 1056.7,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 3
+    },
+    {
+      "file": "test cases/Goal Statisfiction/Task Misinterpretation/goal__task_misinterpretation__summarize_vs_translate.json",
+      "category": "Goal Statisfiction",
+      "run_id": "run_goal_004",
+      "expected": {
+        "failure_type": "Goal Satisfaction Failure",
+        "subtype": "task_misinterpretation",
+        "detection_stage": "task_misinterpretation_analysis"
+      },
+      "actual": {
+        "failure_type": "goal_satisfaction_failure",
+        "subtype": "task_misinterpretation",
+        "confidence_score": 0.9,
+        "confidence_band": "confirmed",
+        "detection_stage": "2",
+        "reason": "Agent misinterpreted the task \u2014 execution did not align with the stated goal"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 938.3,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 4
+    },
+    {
+      "file": "test cases/Goal Statisfiction/Task Misinterpretation/goal__task_misinterpretation__thought_execution_mismatch.json",
+      "category": "Goal Statisfiction",
+      "run_id": "run_goal_005",
+      "expected": {
+        "failure_type": "Goal Satisfaction Failure",
+        "subtype": "task_misinterpretation",
+        "detection_stage": "task_misinterpretation_analysis"
+      },
+      "actual": {
+        "failure_type": "goal_satisfaction_failure",
+        "subtype": "task_misinterpretation",
+        "confidence_score": 0.9,
+        "confidence_band": "confirmed",
+        "detection_stage": "2",
+        "reason": "Agent misinterpreted the task \u2014 execution did not align with the stated goal"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 1236.0,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 5
+    },
+    {
+      "file": "test cases/HALLUCINATION/Hallucination Detected/hallucination__both_signals__fabricated_ids.json",
+      "category": "HALLUCINATION",
+      "run_id": "run_hal_001",
+      "expected": {
+        "failure_type": "Hallucination",
+        "subtype": "hallucination_detected",
+        "detection_stage": "hallucination_pipeline"
+      },
+      "actual": {
+        "failure_type": "hallucination",
+        "subtype": "hallucination_detected",
+        "confidence_score": 0.85,
+        "confidence_band": "confirmed",
+        "detection_stage": "hallucination_pipeline",
+        "reason": "The agent invented specific IDs (ORD-774821 and USR-00341) without any prior lookup step, as the task only mentioned the customer's name 'John Smith'."
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 900.6,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 6
+    },
+    {
+      "file": "test cases/HALLUCINATION/Hallucination Detected/hallucination__multi_step__fabricated_value_not_in_prior_output.json",
+      "category": "HALLUCINATION",
+      "run_id": "run_hal_003",
+      "expected": {
+        "failure_type": "Hallucination",
+        "subtype": "hallucination_detected",
+        "detection_stage": "hallucination_pipeline"
+      },
+      "actual": {
+        "failure_type": "hallucination",
+        "subtype": "hallucination_detected",
+        "confidence_score": 0.745,
+        "confidence_band": "likely",
+        "detection_stage": "hallucination_pipeline",
+        "reason": "The agent used a limit_price of 1650.0, which directly contradicts the prior tool output showing the current price is 1847.5."
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 1586.1,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 8
+    },
+    {
+      "file": "test cases/HALLUCINATION/Hallucination Detected/hallucination__thought_and_input__fabricated_flight_details.json",
+      "category": "HALLUCINATION",
+      "run_id": "run_hal_002",
+      "expected": {
+        "failure_type": "Hallucination",
+        "subtype": "hallucination_detected",
+        "detection_stage": "hallucination_pipeline"
+      },
+      "actual": {
+        "failure_type": "hallucination",
+        "subtype": "hallucination_detected",
+        "confidence_score": 0.883,
+        "confidence_band": "confirmed",
+        "detection_stage": "hallucination_pipeline",
+        "reason": "The agent booked a specific flight number, time, and price without performing any prior search or lookup to obtain this data."
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 866.4,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 9
+    },
+    {
+      "file": "test cases/HALLUCINATION/Insufficient Evidence/insufficient_evidence__one_ungrounded_field__llm_uncertain.json",
+      "category": "HALLUCINATION",
+      "run_id": "run_hal_008",
+      "expected": {
+        "failure_type": "Hallucination",
+        "subtype": "insufficient_evidence",
+        "detection_stage": "hallucination_pipeline"
+      },
+      "actual": {
+        "failure_type": "hallucination",
+        "subtype": "insufficient_evidence",
+        "confidence_score": 0.3975,
+        "confidence_band": "maybe",
+        "detection_stage": "hallucination_pipeline",
+        "reason": "Insufficient evidence to confirm or rule out hallucination"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 965.5,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 10
+    },
+    {
+      "file": "test cases/HALLUCINATION/Insufficient Evidence/insufficient_evidence__thought_ungrounded__input_grounded.json",
+      "category": "HALLUCINATION",
+      "run_id": "run_hal_009",
+      "expected": {
+        "failure_type": "Hallucination",
+        "subtype": "insufficient_evidence",
+        "detection_stage": "hallucination_pipeline"
+      },
+      "actual": {
+        "failure_type": "hallucination",
+        "subtype": "insufficient_evidence",
+        "confidence_score": 0.15,
+        "confidence_band": "insufficient_evidence",
+        "detection_stage": "hallucination_pipeline",
+        "reason": "Thought contains ungrounded assumptions but tool input appears traceable"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 861.5,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 11
+    },
+    {
+      "file": "test cases/HALLUCINATION/No Hallucination/no_hallucination__all_values_grounded_in_task.json",
+      "category": "HALLUCINATION",
+      "run_id": "run_hal_004",
+      "expected": {
+        "failure_type": "Hallucination",
+        "subtype": "no_hallucination",
+        "detection_stage": "hallucination_pipeline"
+      },
+      "actual": {
+        "failure_type": "hallucination",
+        "subtype": "no_hallucination",
+        "confidence_score": 1.0,
+        "confidence_band": "confirmed",
+        "detection_stage": "none",
+        "reason": "No hallucination detected across all steps"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 756.4,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 12
+    },
+    {
+      "file": "test cases/HALLUCINATION/No Hallucination/no_hallucination__common_defaults__not_hallucination.json",
+      "category": "HALLUCINATION",
+      "run_id": "run_hal_007",
+      "expected": {
+        "failure_type": "Hallucination",
+        "subtype": "no_hallucination",
+        "detection_stage": "hallucination_pipeline"
+      },
+      "actual": {
+        "failure_type": "hallucination",
+        "subtype": "no_hallucination",
+        "confidence_score": 1.0,
+        "confidence_band": "confirmed",
+        "detection_stage": "none",
+        "reason": "No hallucination detected across all steps"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 775.1,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 13
+    },
+    {
+      "file": "test cases/HALLUCINATION/No Hallucination/no_hallucination__derived_numeric__computed_from_task.json",
+      "category": "HALLUCINATION",
+      "run_id": "run_hal_006",
+      "expected": {
+        "failure_type": "Hallucination",
+        "subtype": "no_hallucination",
+        "detection_stage": "hallucination_pipeline"
+      },
+      "actual": {
+        "failure_type": "hallucination",
+        "subtype": "no_hallucination",
+        "confidence_score": 1.0,
+        "confidence_band": "confirmed",
+        "detection_stage": "none",
+        "reason": "No hallucination detected across all steps"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 1077.3,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 14
+    },
+    {
+      "file": "test cases/HALLUCINATION/No Hallucination/no_hallucination__multi_step__value_from_prior_output.json",
+      "category": "HALLUCINATION",
+      "run_id": "run_hal_005",
+      "expected": {
+        "failure_type": "Hallucination",
+        "subtype": "no_hallucination",
+        "detection_stage": "hallucination_pipeline"
+      },
+      "actual": {
+        "failure_type": "hallucination",
+        "subtype": "no_hallucination",
+        "confidence_score": 1.0,
+        "confidence_band": "confirmed",
+        "detection_stage": "none",
+        "reason": "No hallucination detected across all steps"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 48323.8,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 16
+    },
+    {
+      "file": "test cases/infinite_loop_and_e2e_traces/classifier_e2e/e2e__all_pass__no_failure.json",
+      "category": "classifier_e2e",
+      "run_id": "run_e2e_003",
+      "expected": {
+        "failure_type": "none",
+        "subtype": "no_failure",
+        "detection_stage": "none"
+      },
+      "actual": {
+        "failure_type": "none",
+        "subtype": "no_failure",
+        "confidence_score": 0.0,
+        "confidence_band": "confirmed",
+        "detection_stage": "classifier_aggregation",
+        "reason": "No failure detected across all enabled detectors."
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 9351.9,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 26
+    },
+    {
+      "file": "test cases/infinite_loop_and_e2e_traces/classifier_e2e/e2e__equal_confidence__priority_tiebreaker.json",
+      "category": "classifier_e2e",
+      "run_id": "run_e2e_002",
+      "expected": {
+        "failure_type": "goal_satisfaction_failure",
+        "subtype": "task_misinterpretation",
+        "detection_stage": "2"
+      },
+      "actual": {
+        "failure_type": "hallucination",
+        "subtype": "hallucination_detected",
+        "confidence_score": 0.7975,
+        "confidence_band": "likely",
+        "detection_stage": "hallucination_pipeline",
+        "reason": "The agent passed 'Jane Doe' and 'Data Analyst' to the tool, but the task specifically requested scheduling a meeting for candidate 'John Smith' for the 'Software Engineer' role."
+      },
+      "pass": false,
+      "failure_type_match": false,
+      "subtype_match": false,
+      "elapsed_ms": 52733.8,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 32
+    },
+    {
+      "file": "test cases/infinite_loop_and_e2e_traces/classifier_e2e/e2e__loop_and_token_exhaustion__token_wins.json",
+      "category": "classifier_e2e",
+      "run_id": "run_e2e_004",
+      "expected": {
+        "failure_type": "token_exhaustion",
+        "subtype": "token_exhaustion_detected",
+        "detection_stage": "token_exhaustion_pipeline"
+      },
+      "actual": {
+        "failure_type": "token_exhaustion",
+        "subtype": "token_exhaustion",
+        "confidence_score": 0.9,
+        "confidence_band": "confirmed",
+        "detection_stage": "Part A",
+        "reason": "Explicit token exhaustion error in step 7 error_message: \"Context window exceeded\""
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 61644.1,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 48
+    },
+    {
+      "file": "test cases/infinite_loop_and_e2e_traces/classifier_e2e/e2e__two_detectors_fire__confidence_wins.json",
+      "category": "classifier_e2e",
+      "run_id": "run_e2e_001",
+      "expected": {
+        "failure_type": "goal_satisfaction_failure",
+        "subtype": "constraint_violation",
+        "detection_stage": "1"
+      },
+      "actual": {
+        "failure_type": "goal_satisfaction_failure",
+        "subtype": "constraint_violation",
+        "confidence_score": 0.8,
+        "confidence_band": "likely",
+        "detection_stage": "1",
+        "reason": "Agent violated 1 explicit constraint(s) from the task"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 5611.4,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 53
+    },
+    {
+      "file": "test cases/premature_termination/premature_termination__partial_completion__3_of_1.json",
+      "category": "premature_termination",
+      "run_id": "run_pt_001",
+      "expected": {
+        "failure_type": "premature_termination",
+        "subtype": "premature_termination_detected",
+        "detection_stage": "premature_termination_pipeline"
+      },
+      "actual": {
+        "failure_type": "premature_termination",
+        "subtype": "premature_termination_detected",
+        "confidence_score": 0.75,
+        "confidence_band": "likely",
+        "detection_stage": "premature_termination_pipeline",
+        "reason": "Agent terminated before completing all task requirements"
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 1294.2,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 54
+    },
+    {
+      "file": "test cases/TOOL_USE FAILURE/Invalid Parameters/invalid_parameters__llm_fallback__first_call_edge_case.json",
+      "category": "TOOL_USE FAILURE",
+      "run_id": "run_ip_003",
+      "expected": {
+        "failure_type": "Tool Use Failure",
+        "subtype": "Valid Tool, Invalid Parameters",
+        "detection_stage": "3 - LLM Fallback (Edge Case: First/Only Call)"
+      },
+      "actual": {
+        "failure_type": "tool_use_failure",
+        "subtype": "wrong_tool_selected",
+        "confidence_score": 0.55,
+        "confidence_band": "maybe",
+        "detection_stage": "3",
+        "reason": "LLM judge determined the selected tool was incorrect: The available tools list is empty, making it impossible for the agent to have selected a valid tool."
+      },
+      "pass": false,
+      "failure_type_match": true,
+      "subtype_match": false,
+      "elapsed_ms": 1013.4,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 55
+    },
+    {
+      "file": "test cases/TOOL_USE FAILURE/Invalid Parameters/invalid_parameters__runtime_inference__multi_step.json",
+      "category": "TOOL_USE FAILURE",
+      "run_id": "run_ip_002",
+      "expected": {
+        "failure_type": "Tool Use Failure",
+        "subtype": "Valid Tool, Invalid Parameters",
+        "detection_stage": "2 - Runtime Schema Inference"
+      },
+      "actual": {
+        "failure_type": "tool_use_failure",
+        "subtype": "wrong_tool_selected",
+        "confidence_score": 0.55,
+        "confidence_band": "maybe",
+        "detection_stage": "3",
+        "reason": "LLM judge determined the selected tool was incorrect: No available tools were provided in the context to evaluate against."
+      },
+      "pass": false,
+      "failure_type_match": true,
+      "subtype_match": false,
+      "elapsed_ms": 808.1,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 56
+    },
+    {
+      "file": "test cases/TOOL_USE FAILURE/Valid Paremeters , wrong values/incorrect_values__llm_fallback__ungrounded_ambiguous.json",
+      "category": "TOOL_USE FAILURE",
+      "run_id": "run_ipv_004",
+      "expected": {
+        "failure_type": "Tool Use Failure",
+        "subtype": "Valid Tool, Incorrect Parameter Values",
+        "detection_stage": "3 - LLM Judge / Embedding Fallback"
+      },
+      "actual": {
+        "failure_type": "tool_use_failure",
+        "subtype": "no_tool_use_failure",
+        "confidence_score": 1.0,
+        "confidence_band": "confirmed",
+        "detection_stage": "none",
+        "reason": "All steps passed tool use validation checks"
+      },
+      "pass": false,
+      "failure_type_match": true,
+      "subtype_match": false,
+      "elapsed_ms": 2707.0,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 59
+    },
+    {
+      "file": "test cases/TOOL_USE FAILURE/Wrong tool selected/wrong_tool_selected__embedding_ranking__negative_control_close_match.json",
+      "category": "TOOL_USE FAILURE",
+      "run_id": "run_wt_004",
+      "expected": {
+        "failure_type": "None",
+        "subtype": "No Tool Use Failure",
+        "detection_stage": "2 - Tool Ranking via Embedding"
+      },
+      "actual": {
+        "failure_type": "tool_use_failure",
+        "subtype": "incorrect_parameter_values",
+        "confidence_score": 0.3,
+        "confidence_band": "maybe",
+        "detection_stage": "3.3",
+        "reason": "LLM judge was uncertain, but 1 parameter(s) could not be traced to the task or prior outputs"
+      },
+      "pass": false,
+      "failure_type_match": false,
+      "subtype_match": false,
+      "elapsed_ms": 48724.1,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 62
+    },
+    {
+      "file": "test cases/TOOL_USE FAILURE/Wrong tool selected/wrong_tool_selected__llm_fallback__tier1_only.json",
+      "category": "TOOL_USE FAILURE",
+      "run_id": "run_wt_005",
+      "expected": {
+        "failure_type": "Tool Use Failure",
+        "subtype": "Wrong Tool Selected",
+        "detection_stage": "3 - LLM Fallback"
+      },
+      "actual": {
+        "failure_type": "tool_use_failure",
+        "subtype": "wrong_tool_selected",
+        "confidence_score": 0.55,
+        "confidence_band": "maybe",
+        "detection_stage": "3",
+        "reason": "LLM judge determined the selected tool was incorrect: The currency_converter tool is used for converting between different currencies, not for calculating loan Equated Monthly Installments (EMI)."
+      },
+      "pass": true,
+      "failure_type_match": true,
+      "subtype_match": true,
+      "elapsed_ms": 1069.9,
+      "error": null,
+      "run_mode": "llm",
+      "llm_api_calls": 63
+    }
+  ],
+  "phased": {
+    "initial_used": 0,
+    "first_batch": 3,
+    "batch_size": 15,
+    "max_per_minute": 15,
+    "mock_resolved": 36,
+    "llm_ran": 24,
+    "total_api_calls": 63
+  }
+}

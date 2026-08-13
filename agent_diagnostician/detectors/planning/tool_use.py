@@ -17,12 +17,24 @@ from typing import Any
 from agent_diagnostician.detectors.base import BaseDetector
 from agent_diagnostician.models.trace import AgentTrace, Step
 from agent_diagnostician.models.result import DetectionResult, Evidence
-from agent_diagnostician.models.enums import FailureType, ToolUseSubtype, ConfidenceBand
+from agent_diagnostician.models.enums import (
+    FailureType,
+    ToolUseSubtype,
+    ToolSelectionVerdict,
+    ParameterStructureVerdict,
+    ParameterValuesVerdict,
+    STEP_FAILURE_STATUSES,
+)
 
+from agent_diagnostician.config import (
+    MIN_PRIOR_CALLS_FOR_SCHEMA,
+    TOOL_RANKING_GAP_THRESHOLD,
+)
 from agent_diagnostician.analysis.embeddings import EmbeddingMatcher
 from agent_diagnostician.analysis.schema import SchemaValidator
 from agent_diagnostician.analysis.grounding import GroundingAnalyzer
-from agent_diagnostician.analysis.llm_judge import LLMJudge, MockLLMJudge
+from agent_diagnostician.analysis.llm.parser import is_llm_response_ok
+from agent_diagnostician.analysis.llm import LLMJudge, MockLLMJudge
 
 
 class ToolUseDetector(BaseDetector):
@@ -35,7 +47,11 @@ class ToolUseDetector(BaseDetector):
     MockLLMJudge for development/testing.
     """
 
-    def __init__(self, llm_judge: LLMJudge | None = None):
+    def __init__(
+        self,
+        llm_judge: LLMJudge | None = None,
+        embedding_matcher: EmbeddingMatcher | None = None,
+    ):
         """Initialize detector with LLM judge and embedding matcher.
         
         EmbeddingMatcher is expensive to initialize — instantiate ONCE
@@ -43,9 +59,10 @@ class ToolUseDetector(BaseDetector):
         
         Args:
             llm_judge: LLM judge implementation. If None, uses MockLLMJudge.
+            embedding_matcher: Shared embedding matcher. If None, creates one.
         """
         self.llm_judge = llm_judge or MockLLMJudge()
-        self.embeddings = EmbeddingMatcher()
+        self.embeddings = embedding_matcher or EmbeddingMatcher()
 
     def detect(self, trace: AgentTrace) -> DetectionResult:
         """Run full tool use failure detection pipeline on a trace.
@@ -74,9 +91,6 @@ class ToolUseDetector(BaseDetector):
 
         # Check each step in order
         for step in trace.steps:
-            # Skip steps that clearly succeeded — no point running full detection pipeline
-            if self._step_likely_succeeded(step):
-                continue
             result = self._detect_step(trace, step)
             # If this step produced a failure (not NO_FAILURE or INSUFFICIENT_EVIDENCE), return it
             if result.subtype not in (
@@ -95,34 +109,6 @@ class ToolUseDetector(BaseDetector):
             detection_stage="none",
             fix_direction="No fix required — agent used tools correctly",
         )
-
-    def _step_likely_succeeded(self, step: Step) -> bool:
-        """Skip steps that clearly succeeded — no point running full
-        detection pipeline on steps where tool_output shows success."""
-        if step.step_status in ("error", "failed"):
-            return False
-        if step.error_message is not None:
-            return False
-
-        # Check if tool_output contains an error signal
-        if isinstance(step.tool_output, dict):
-            if "error" in step.tool_output:
-                return False
-
-        # Non-dict non-null output — assume success, skip
-        if step.tool_output is not None and not isinstance(step.tool_output, dict):
-            return True
-
-        # Common success signals — if present, skip this step
-        # Only check if tool_output exists and is a dict
-        if isinstance(step.tool_output, dict):
-            success_keys = {"logged", "success", "ok", "created", "completed", "write_success", "updated",
-                            "recorded", "confirmed"}
-            if any(k in step.tool_output for k in success_keys):
-                return True
-
-        # Default: don't skip, analyze the step
-        return False
 
     def _detect_step(self, trace: AgentTrace, step: Step) -> DetectionResult:
         """Run full pipeline on a single step.
@@ -256,8 +242,8 @@ class ToolUseDetector(BaseDetector):
                     # Compute similarity gap between rank-1 and rank-2
                     gap = self.embeddings.similarity_gap(ranked)
 
-                    # If called tool is NOT rank-1 AND gap > 0.15: wrong tool
-                    if called_rank > 1 and gap > 0.15:
+                    # If called tool is NOT rank-1 AND gap exceeds threshold: wrong tool
+                    if called_rank > 1 and gap > TOOL_RANKING_GAP_THRESHOLD:
                         top_tool_name = ranked[0]["text"].split(":")[0].strip()
                         return self.build_result(
                             failure_type=FailureType.TOOL_USE_FAILURE,
@@ -293,7 +279,10 @@ class ToolUseDetector(BaseDetector):
             thought=step.thought,
         )
 
-        if llm_result.get("verdict") == "incorrect":
+        if not is_llm_response_ok(llm_result):
+            return None
+
+        if llm_result.get("verdict") == ToolSelectionVerdict.INCORRECT.value:
             return self.build_result(
                 failure_type=FailureType.TOOL_USE_FAILURE,
                 subtype=ToolUseSubtype.WRONG_TOOL_SELECTED.value,
@@ -393,7 +382,7 @@ class ToolUseDetector(BaseDetector):
 
         # Step 2 — Infer schema from prior successful calls (if official schema unavailable)
         prior_successful_calls = self._get_prior_successful_calls(trace, step)
-        if len(prior_successful_calls) >= 2:
+        if len(prior_successful_calls) >= MIN_PRIOR_CALLS_FOR_SCHEMA:
             inferred_schema = SchemaValidator.infer_schema_from_calls(
                 prior_successful_calls
             )
@@ -429,7 +418,10 @@ class ToolUseDetector(BaseDetector):
             task=trace.task,
         )
 
-        if llm_result.get("verdict") == "invalid":
+        if not is_llm_response_ok(llm_result):
+            return None
+
+        if llm_result.get("verdict") == ParameterStructureVerdict.INVALID.value:
             return self.build_result(
                 failure_type=FailureType.TOOL_USE_FAILURE,
                 subtype=ToolUseSubtype.INVALID_PARAMETERS.value,
@@ -473,7 +465,7 @@ class ToolUseDetector(BaseDetector):
                 break
             if step.tool_name == current_step.tool_name:
                 status = step.step_status
-                if status is None or status not in ("error", "failed"):
+                if status is None or status not in STEP_FAILURE_STATUSES:
                     prior_calls.append(step.tool_input)
         return prior_calls
 
@@ -597,7 +589,10 @@ class ToolUseDetector(BaseDetector):
             thought=step.thought,
         )
 
-        if llm_result.get("verdict") == "unjustified":
+        if not is_llm_response_ok(llm_result):
+            return None
+
+        if llm_result.get("verdict") == ParameterValuesVerdict.UNJUSTIFIED.value:
             # Average grounding confidence with LLM contribution
             llm_conf = 0.55
             if ungrounded_evidence:

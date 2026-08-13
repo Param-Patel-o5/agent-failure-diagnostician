@@ -14,10 +14,11 @@ from typing import Any
 from agent_diagnostician.detectors.base import BaseDetector
 from agent_diagnostician.models.trace import AgentTrace, Step
 from agent_diagnostician.models.result import DetectionResult, Evidence
-from agent_diagnostician.models.enums import FailureType, ContextLossSubtype
+from agent_diagnostician.models.enums import FailureType, ContextLossSubtype, ContextLossVerdict, EvidenceSignal
 from agent_diagnostician.analysis.embeddings import EmbeddingMatcher
 from agent_diagnostician.analysis.grounding import GroundingAnalyzer
-from agent_diagnostician.analysis.llm_judge import LLMJudge, MockLLMJudge
+from agent_diagnostician.analysis.llm.parser import is_llm_response_ok
+from agent_diagnostician.analysis.llm import LLMJudge, MockLLMJudge
 
 
 class ContextLossDetector(BaseDetector):
@@ -34,15 +35,19 @@ class ContextLossDetector(BaseDetector):
     MIN_CONFIDENCE_THRESHOLD = 0.30   # Minimum confidence to report failure per step (lowered from 0.40)
     MAX_CONFIDENCE = 0.92             # Cap for step-level confidence score
 
-    def __init__(self, llm_judge: LLMJudge | None = None):
+    def __init__(
+        self,
+        llm_judge: LLMJudge | None = None,
+        embedding_matcher: EmbeddingMatcher | None = None,
+    ):
         """Initialize detector with LLM judge.
         
         Args:
             llm_judge: Optional LLM judge implementation. Defaults to MockLLMJudge.
+            embedding_matcher: Shared embedding matcher. If None, creates one.
         """
         self.llm_judge = llm_judge or MockLLMJudge()
-        # Instantiate EmbeddingMatcher once for all similarity checks
-        self.embeddings = EmbeddingMatcher()
+        self.embeddings = embedding_matcher or EmbeddingMatcher()
 
     def detect(self, trace: AgentTrace) -> DetectionResult:
         """Run context loss detection pipeline.
@@ -249,45 +254,47 @@ class ContextLossDetector(BaseDetector):
                 "tool_output": s.tool_output,
             }
             for s in trace.steps
+            if s.step_index <= step.step_index
         ]
-        
-        # Get last thought from any step
-        last_thought = None
-        for s in reversed(trace.steps):
-            if s.thought is not None:
-                last_thought = s.thought
-                break
-        
-        # Compute embedding score for LLM context
-        final_output_str = str(trace.final_output) if trace.final_output else ""
-        task_output_sim = self.embeddings.similarity(trace.task, final_output_str)
-        
+
+        prior_outputs = [
+            s.tool_output
+            for s in trace.steps
+            if s.step_index < step.step_index and s.tool_output is not None
+        ]
+
         # Run LLM judge
-        llm_result = self.llm_judge.evaluate_goal_alignment(
+        llm_result = self.llm_judge.evaluate_context_loss(
             task=trace.task,
-            final_output=trace.final_output,
+            step_index=step.step_index,
+            tool_name=step.tool_name or "",
+            tool_input=step.tool_input if step.tool_input else {},
+            tool_output=step.tool_output,
+            prior_outputs=prior_outputs,
             steps=steps_list,
-            thought=last_thought,
-            embedding_score=task_output_sim,
+            thought=step.thought,
         )
-        
-        if llm_result.get("verdict") == "misinterpreted":
+
+        if not is_llm_response_ok(llm_result):
+            return 0.0
+
+        if llm_result.get("verdict") == ContextLossVerdict.CONTEXT_LOST.value:
             llm_score = 0.45 + llm_result.get("confidence", 0) * 0.15
             evidence.append(
                 Evidence(
                     detection_stage="3 - LLM Fallback",
                     signal="llm_context_loss_verdict",
                     confidence_contribution=llm_score,
-                    explanation=f"LLM judge detected context inconsistency: {llm_result.get('reason', 'no reason')}",
+                    explanation=f"LLM judge detected context loss: {llm_result.get('reason', 'no reason')}",
                 )
             )
             return llm_score
-        elif llm_result.get("verdict") == "uncertain":
+        elif llm_result.get("verdict") == ContextLossVerdict.UNCERTAIN.value:
             llm_score = 0.10
             evidence.append(
                 Evidence(
                     detection_stage="3 - LLM Fallback",
-                    signal="llm_uncertain_verdict",
+                    signal=EvidenceSignal.LLM_UNCERTAIN_VERDICT.value,
                     confidence_contribution=0.10,
                     explanation="LLM judge was uncertain about context consistency",
                 )

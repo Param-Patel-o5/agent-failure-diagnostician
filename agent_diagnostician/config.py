@@ -9,8 +9,9 @@ from agent_diagnostician.models.enums import FailureType
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"  # local, free, no API needed
 
 # ── LLM Judge ─────────────────────────────────────────────────────────────
-LLM_PROVIDER = "gemini"               # "gemini" | "openai" | "mock"
-LLM_MODEL = "models/gemini-2.5-flash"
+LLM_PROVIDER = "gemini"               # gemini | openai | anthropic | mock
+LLM_MODEL = "gemini-flash-latest"
+# API key: set LLM_API_KEY or provider-specific key (GEMINI_API_KEY, etc.)
 
 # ── Confidence Thresholds ──────────────────────────────────────────────────
 # These map 0-1 scores to ConfidenceBand labels.
@@ -35,6 +36,31 @@ GROUNDING_FUZZY_THRESHOLD = 0.80
 
 # Minimum confidence to report secondary evidence in GoalFailureDetector.
 SECONDARY_EVIDENCE_THRESHOLD = 0.30
+
+# ── Hallucination detector ───────────────────────────────────────────────────
+# Weighted combo: (grounding_score * GROUNDING_WEIGHT) + (llm_score * LLM_WEIGHT)
+HALLUCINATION_GROUNDING_WEIGHT = 0.45
+HALLUCINATION_LLM_WEIGHT = 0.55
+HALLUCINATION_DETECT_THRESHOLD = 0.45
+HALLUCINATION_CLEAR_PASS_THRESHOLD = 0.10
+HALLUCINATION_MAX_CONFIDENCE = 0.95
+
+# Grounding score caps and per-field contribution inside the detector.
+HALLUCINATION_GROUNDING_CAP = 0.85
+HALLUCINATION_PER_FIELD_WEIGHT = 0.55
+HALLUCINATION_THOUGHT_BONUS = 0.15
+HALLUCINATION_IDENTIFIER_BONUS = 0.15
+
+# Grounding-only paths (used when LLM is unavailable or low-confidence).
+HALLUCINATION_STRONG_GROUNDING_THRESHOLD = 0.38
+HALLUCINATION_MIN_UNGROUNDED_FOR_DETECT = 2
+
+# ── Infinite loop detector ───────────────────────────────────────────────────
+INFINITE_LOOP_MIN_CALLS = 3
+INFINITE_LOOP_MIN_RATIO = 0.40
+INFINITE_LOOP_INPUT_SIMILARITY_THRESHOLD = 0.85
+INFINITE_LOOP_ERROR_RATIO_THRESHOLD = 0.60
+INFINITE_LOOP_THOUGHT_SIMILARITY_THRESHOLD = 0.85
 
 # ── Detector Selection ─────────────────────────────────────────────────────
 # Default detectors to run if none specified.

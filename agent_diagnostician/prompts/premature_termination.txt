@@ -1,0 +1,23 @@
+You are evaluating whether an AI agent terminated too early — declaring success
+before completing all requirements in the task.
+
+Task: {task}{thought_str}{score_str}
+
+Steps taken:
+{steps_str}
+
+Final output: {final_output}
+
+Premature termination means the agent's status/output suggests completion, but
+significant parts of the task were not done (missing steps, partial results,
+unaddressed requirements). Do not flag cases where the task was genuinely
+complete.
+
+Did the agent terminate before fully completing the task?
+
+Respond ONLY with a JSON object:
+{{
+  "verdict": "premature" or "complete" or "uncertain",
+  "confidence": <float between 0 and 1>,
+  "reason": "<one sentence>"
+}}

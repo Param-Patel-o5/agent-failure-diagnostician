@@ -12,23 +12,20 @@ git clone https://github.com/your-org/agent-diagnostician
 cd agent-diagnostician
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -e ".[dev]"
+pip install -r requirements.txt
 ```
 
-2. **Install Pre-commit Hooks**
-```bash
-pre-commit install
-```
+> **Python:** Requires Python 3.11+ (see `pyproject.toml`).
 
-3. **Run Tests** 
-```bash
-pytest tests/ -v
-python -m pytest tests/integration/ --slow  # Integration tests
-```
-
-4. **Verify Installation**
+2. **Verify Installation**
 ```bash
 python -c "from agent_diagnostician import Classifier; print('Setup successful!')"
+```
+
+3. **Run fixture traces**
+```bash
+# Automated pytest suite: not yet in repo
+# Manual fixtures live in test cases/ (63 JSON files)
 ```
 
 ### Project Structure
@@ -43,18 +40,20 @@ agent-diagnostician/
 │   ├── analysis/               # Reusable analysis components
 │   ├── models/                 # Pydantic data models
 │   └── prompts/               # LLM prompt templates
-├── tests/                      # Test suites
 ├── docs/                      # Documentation
-├── test cases/               # Test case fixtures (JSON traces)
+├── test cases/               # Trace fixtures (63 JSON files, local validation)
 └── examples/                 # Usage examples
 ```
+
+> There is no `tests/` pytest suite in the repo yet. Use `test cases/` fixtures
+> until a runner is added.
 
 ## 🎯 Contribution Areas
 
 ### High Priority
 
 **1. Detector Accuracy Improvements**
-- Improve hallucination detection (currently 55.6% accuracy)
+- Improve hallucination detection accuracy (LLM + grounding pipeline)
 - Enhance premature termination threshold tuning
 - Fix false positive issues in various detectors
 
@@ -474,23 +473,17 @@ classifier = Classifier(detector_config=detector_config)
 
 ### Running Tests
 
+Automated pytest suites are not in the repo yet. Until added:
+
 ```bash
-# Fast unit tests only
-pytest tests/unit/ -v
+# Verify import
+python -c "from agent_diagnostician import Classifier; print('ok')"
 
-# All tests including integration  
-pytest tests/ -v --slow
+# Run examples
+python examples/basic_usage.py
 
-# Specific test categories
-pytest -m "not integration" -v        # Skip integration tests
-pytest -m "integration" -v --slow     # Only integration tests
-pytest -k "test_tool_use" -v          # Specific test pattern
-
-# With coverage
-pytest --cov=agent_diagnostician tests/ --cov-report=html
-
-# Performance profiling
-pytest tests/performance/ --benchmark-only
+# Manual fixtures: test cases/ (63 JSON trace files)
+# A pytest runner will be added in a follow-up PR.
 ```
 
 ### Mock Guidelines
@@ -664,7 +657,8 @@ class ToolUseDetector(BaseDetector):
         MIN_CONFIDENCE: Threshold for reporting failures (0.30)
         
     Example:
-        >>> detector = ToolUseDetector(llm_judge=GeminiLLMJudge())
+        >>> from agent_diagnostician.analysis.llm import create_llm_judge_from_env
+        >>> detector = ToolUseDetector(llm_judge=create_llm_judge_from_env())
         >>> result = detector.detect(trace)
         >>> if result.subtype == "wrong_tool_selected":
         >>>     print(f"Wrong tool used: {result.reason}")

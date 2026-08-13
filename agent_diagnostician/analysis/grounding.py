@@ -7,6 +7,8 @@
 
 from typing import Any
 
+from agent_diagnostician.config import GROUNDING_FUZZY_THRESHOLD
+from agent_diagnostician.models.enums import GroundingClassification
 from agent_diagnostician.utils.text import fuzzy_match as _fuzzy_match_fn
 
 
@@ -15,11 +17,7 @@ class GroundingAnalyzer:
     Used in Stage 3 of Tool Use (Incorrect Parameter Values) to determine
     whether each value in tool_input is justifiable."""
 
-    # Fuzzy match threshold -- how similar a value needs to be to a
-    # source string to count as "found". 0.8 = 80% string similarity.
-    # Loose enough to catch reformatted/partial matches, tight enough
-    # to avoid false positives.
-    FUZZY_THRESHOLD = 0.8
+    FUZZY_THRESHOLD = GROUNDING_FUZZY_THRESHOLD
 
     # How close a numeric value needs to be to count as derived
     # (handles floating point rounding, e.g. 54.36 vs 54.3599...)
@@ -53,6 +51,7 @@ class GroundingAnalyzer:
 
         for field, value in tool_input.items():
             result = GroundingAnalyzer._classify_value(
+                field=field,
                 value=value,
                 task=task,
                 prior_outputs=prior_outputs,
@@ -63,6 +62,7 @@ class GroundingAnalyzer:
 
     @staticmethod
     def _classify_value(
+        field: str,
         value: Any,
         task: str,
         prior_outputs: list[Any],
@@ -75,9 +75,27 @@ class GroundingAnalyzer:
         task_score = GroundingAnalyzer._fuzzy_match(str_value, task)
         if task_score >= GroundingAnalyzer.FUZZY_THRESHOLD:
             return {
-                "classification": "direct",
+                "classification": GroundingClassification.DIRECT.value,
                 "source": "task",
                 "confidence": task_score,
+            }
+
+        # Normalized match (underscores/hyphens → spaces) for report names etc.
+        normalized_value = str_value.replace("_", " ").replace("-", " ")
+        task_lower = task.lower()
+        if normalized_value.lower() in task_lower:
+            return {
+                "classification": GroundingClassification.DIRECT.value,
+                "source": "task_normalized",
+                "confidence": 0.90,
+            }
+        # All tokens from normalized value appear in task (e.g. sales report Q2 2026).
+        tokens = [t for t in normalized_value.lower().split() if len(t) > 1]
+        if tokens and all(token in task_lower for token in tokens):
+            return {
+                "classification": GroundingClassification.DIRECT.value,
+                "source": "task_token_match",
+                "confidence": 0.85,
             }
 
         # Step 2: Check direct match against any prior tool output
@@ -86,7 +104,7 @@ class GroundingAnalyzer:
             output_score = GroundingAnalyzer._fuzzy_match(str_value, output_str)
             if output_score >= GroundingAnalyzer.FUZZY_THRESHOLD:
                 return {
-                    "classification": "direct",
+                    "classification": GroundingClassification.DIRECT.value,
                     "source": f"step_{i}_tool_output",
                     "confidence": output_score,
                 }
@@ -101,25 +119,76 @@ class GroundingAnalyzer:
             )
             if is_derived:
                 return {
-                    "classification": "derived",
+                    "classification": GroundingClassification.DERIVED.value,
                     "source": source,
-                    "confidence": 0.75,  # derived values carry slightly less confidence
+                    "confidence": 0.75,
                 }
 
-        # Step 3.5: Check if value is a reasonable default for hallucination detection
+        # Step 3.5: Date/time fields often use a different format than the task text.
+        field_hint = str(field).lower()
+        if "date" in field_hint and GroundingAnalyzer._date_referenced_in_task(str_value, task):
+            return {
+                "classification": GroundingClassification.DERIVED.value,
+                "source": "task_date_format",
+                "confidence": 0.80,
+            }
+        if "time" in field_hint and GroundingAnalyzer._time_referenced_in_task(str_value, task):
+            return {
+                "classification": GroundingClassification.DERIVED.value,
+                "source": "task_time_format",
+                "confidence": 0.80,
+            }
+
+        # Step 3.6: Check if value is a reasonable default for hallucination detection
         if GroundingAnalyzer._is_reasonable_default(str_value):
             return {
-                "classification": "derived",  # Treat reasonable defaults as derived
+                "classification": GroundingClassification.DERIVED.value,
                 "source": "reasonable_default",
-                "confidence": 0.85,  # High confidence for reasonable defaults
+                "confidence": 0.85,
             }
 
         # Step 4: Nothing found -- ungrounded
         return {
-            "classification": "ungrounded",
+            "classification": GroundingClassification.UNGROUNDED.value,
             "source": None,
             "confidence": 0.0,
         }
+
+    @staticmethod
+    def _date_referenced_in_task(value: str, task: str) -> bool:
+        import re
+
+        parts = value.split("-")
+        if len(parts) == 3 and all(p.isdigit() for p in parts):
+            year, month, day = parts
+            if year in task and day in task:
+                return True
+        # Also accept if all numeric components from value appear in task.
+        nums = re.findall(r"\d+", value)
+        return bool(nums) and all(n in task for n in nums)
+
+    @staticmethod
+    def _time_referenced_in_task(value: str, task: str) -> bool:
+        import re
+
+        if value in task:
+            return True
+        match = re.match(r"^(\d{1,2}):(\d{2})$", value.strip())
+        if not match:
+            return False
+        hour = int(match.group(1))
+        minute = match.group(2)
+        twelve_hour = hour - 12 if hour > 12 else hour
+        patterns = {
+            f"{hour:02d}:{minute}",
+            f"{hour}:{minute}",
+            f"{twelve_hour}:{minute}",
+            f"{twelve_hour}{minute}",
+        }
+        if hour == 15:
+            patterns.update({"3pm", "3 pm", "3:00pm", "15:00"})
+        task_lower = task.lower()
+        return any(p.lower() in task_lower for p in patterns)
 
     @staticmethod
     def _is_reasonable_default(value: str) -> bool:
@@ -137,7 +206,7 @@ class GroundingAnalyzer:
             'enabled', 'disabled', 'true', 'false', 'yes', 'no',
             
             # Common formats/units
-            'json', 'xml', 'csv', 'pdf', 'txt', 'html',
+            'json', 'xml', 'csv', 'pdf', 'txt', 'html', 'utf-8', 'utf8',
             'metric', 'imperial', 'celsius', 'fahrenheit', 'usd', 'eur', 'inr',
             
             # Language codes  
@@ -145,6 +214,11 @@ class GroundingAnalyzer:
             
             # Common defaults
             'default', 'standard', 'normal', 'basic', 'premium',
+
+            # Appointment / document aliases
+            'follow_up', 'followup', 'follow-up',
+            'nda', 'non_disclosure_agreement',
+            'performance_review', 'performance review',
         }
         
         return value_lower in reasonable_defaults
@@ -244,8 +318,12 @@ class GroundingAnalyzer:
 
         for field, result in grounding_results.items():
             classification = result["classification"]
-            summary[classification] += 1
-            if classification == "ungrounded":
+            if classification == GroundingClassification.DIRECT.value:
+                summary["direct"] += 1
+            elif classification == GroundingClassification.DERIVED.value:
+                summary["derived"] += 1
+            elif classification == GroundingClassification.UNGROUNDED.value:
+                summary["ungrounded"] += 1
                 summary["ungrounded_fields"].append(field)
 
         return summary

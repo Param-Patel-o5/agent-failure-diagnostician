@@ -11,9 +11,17 @@ from typing import Any
 from agent_diagnostician.detectors.base import BaseDetector
 from agent_diagnostician.models.trace import AgentTrace, Step
 from agent_diagnostician.models.result import DetectionResult, Evidence
-from agent_diagnostician.models.enums import FailureType, PrematureTerminationSubtype
+from agent_diagnostician.models.enums import (
+    FailureType,
+    PrematureTerminationSubtype,
+    PrematureTerminationVerdict,
+    EvidenceSignal,
+    TRACE_SUCCESS_STATUSES,
+    STEP_FAILURE_STATUSES,
+)
 from agent_diagnostician.analysis.embeddings import EmbeddingMatcher
-from agent_diagnostician.analysis.llm_judge import LLMJudge, MockLLMJudge
+from agent_diagnostician.analysis.llm.parser import is_llm_response_ok
+from agent_diagnostician.analysis.llm import LLMJudge, MockLLMJudge
 
 
 class PrematureTerminationDetector(BaseDetector):
@@ -30,15 +38,19 @@ class PrematureTerminationDetector(BaseDetector):
     MIN_CONFIDENCE_THRESHOLD = 0.50   # Minimum confidence to report failure (raised from 0.35)
     MAX_CONFIDENCE = 0.92             # Cap for final confidence score
 
-    def __init__(self, llm_judge: LLMJudge | None = None):
+    def __init__(
+        self,
+        llm_judge: LLMJudge | None = None,
+        embedding_matcher: EmbeddingMatcher | None = None,
+    ):
         """Initialize detector with LLM judge.
         
         Args:
             llm_judge: Optional LLM judge implementation. Defaults to MockLLMJudge.
+            embedding_matcher: Shared embedding matcher. If None, creates one.
         """
         self.llm_judge = llm_judge or MockLLMJudge()
-        # Instantiate EmbeddingMatcher once for all similarity checks
-        self.embeddings = EmbeddingMatcher()
+        self.embeddings = embedding_matcher or EmbeddingMatcher()
 
     def detect(self, trace: AgentTrace) -> DetectionResult:
         """Run premature termination detection pipeline.
@@ -63,7 +75,7 @@ class PrematureTerminationDetector(BaseDetector):
         
         # CRITICAL: Only check for premature termination if the agent actually claimed success
         # If the agent failed or is incomplete, this is NOT premature termination
-        if trace.status not in ["success", "completed"]:
+        if trace.status not in TRACE_SUCCESS_STATUSES:
             return self.build_result(
                 failure_type=FailureType.PREMATURE_TERMINATION,
                 subtype=PrematureTerminationSubtype.NO_PREMATURE_TERMINATION.value,
@@ -88,7 +100,7 @@ class PrematureTerminationDetector(BaseDetector):
             evidence.append(
                 Evidence(
                     detection_stage="1 - Task vs Final Output",
-                    signal="low_task_output_similarity",
+                    signal=EvidenceSignal.LOW_TASK_OUTPUT_SIMILARITY.value,
                     confidence_contribution=0.50,
                     explanation=f"Low semantic similarity between task and final output ({task_output_sim:.2f}) — output may not address all task requirements",
                 )
@@ -116,7 +128,7 @@ class PrematureTerminationDetector(BaseDetector):
         failed_steps = []
         for s in trace.steps:
             # Check step status
-            if hasattr(s, 'step_status') and s.step_status in ("error", "failed"):
+            if hasattr(s, 'step_status') and s.step_status in STEP_FAILURE_STATUSES:
                 failed_steps.append(s)
                 continue
             
@@ -168,15 +180,17 @@ class PrematureTerminationDetector(BaseDetector):
             task_output_sim_for_llm = self.embeddings.similarity(trace.task, final_output_str)
             
             # Run LLM judge
-            llm_result = self.llm_judge.evaluate_goal_alignment(
+            llm_result = self.llm_judge.evaluate_premature_termination(
                 task=trace.task,
                 final_output=trace.final_output,
                 steps=steps_list,
                 thought=last_thought,
                 embedding_score=task_output_sim_for_llm,
             )
-            
-            if llm_result.get("verdict") == "misinterpreted":
+
+            if not is_llm_response_ok(llm_result):
+                llm_confidence = 0.0
+            elif llm_result.get("verdict") == PrematureTerminationVerdict.PREMATURE.value:
                 llm_confidence = 0.55 + llm_result.get("confidence", 0) * 0.20
                 evidence.append(
                     Evidence(
@@ -186,12 +200,12 @@ class PrematureTerminationDetector(BaseDetector):
                         explanation=f"LLM judge determined task was not fully completed: {llm_result.get('reason', 'no reason')}",
                     )
                 )
-            elif llm_result.get("verdict") == "uncertain":
+            elif llm_result.get("verdict") == PrematureTerminationVerdict.UNCERTAIN.value:
                 llm_confidence = 0.10
                 evidence.append(
                     Evidence(
                         detection_stage="4 - LLM Fallback",
-                        signal="llm_uncertain_verdict",
+                        signal=EvidenceSignal.LLM_UNCERTAIN_VERDICT.value,
                         confidence_contribution=0.10,
                         explanation="LLM judge was uncertain about task completion",
                     )

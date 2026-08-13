@@ -27,19 +27,20 @@ both `str` and `Enum`, meaning values serialize cleanly to/from JSON.
 | `FailureType` | Tool Use Failure, Hallucination, Goal Satisfaction Failure, Context Loss, Token Exhaustion, Premature Termination, Infinite Loop, None | Top-level category, set on every `DetectionResult` |
 | `ToolUseSubtype` | Wrong Tool Selected, Invalid Parameters, Incorrect Parameter Values, No Tool Use Failure, Insufficient Evidence | Tool Use detector's verdict |
 | `GoalFailureSubtype` | Constraint Violation, Task Misinterpretation, No Goal Failure, Insufficient Evidence | Goal Failure detector's verdict |
-| `ConfidenceBand` | Confirmed, Likely, Maybe, Insufficient Evidence | Bucketed confidence, on every `DetectionResult` |
-
-**Note:** subtype enums for Hallucination, Context Loss, Token Exhaustion,
-Premature Termination, and Infinite Loop don't exist yet — add them when
-each detector's logic is actually designed, not before.
+| `ConfidenceBand` | Confirmed (≥0.85), Likely (≥0.60), Maybe (≥0.30), Insufficient Evidence (<0.30) | Bucketed confidence — see `config.CONFIDENCE_THRESHOLDS` |
+| `TraceRunStatus` | success, completed, error, failed, incomplete, timeout | Run-level `AgentTrace.status` |
+| `StepRunStatus` | success, error, failed, continuing | Step-level `Step.step_status` |
+| `ToolSelectionVerdict` / `ParameterStructureVerdict` / `ParameterValuesVerdict` / `GoalAlignmentVerdict` / `ContextLossVerdict` / `PrematureTerminationVerdict` | LLM prompt contract strings | Used by `analysis/llm/` and detectors |
+| `GroundingClassification` | direct, derived, ungrounded | Output of `GroundingAnalyzer` |
+| `EvidenceSignal` | Common repeated evidence labels | Shared signals across detectors |
+| `ClassifierSubtype` | no_failure | Classifier aggregate result when all detectors pass |
 
 ---
 
 ## trace.py
 
 Defines the internal, framework-agnostic shape of an agent trace.
-`tracer.py` (not yet built) is responsible for converting raw
-framework-specific logs (LangChain, LangGraph, AutoGen, custom) into
+`tracer.py` converts fixture JSON (and in future, framework-specific logs) into
 these models. Everything downstream — detectors, analysis modules — only
 ever sees this shape.
 

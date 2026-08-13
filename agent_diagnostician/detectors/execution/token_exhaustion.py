@@ -13,7 +13,7 @@
 from agent_diagnostician.detectors.base import BaseDetector
 from agent_diagnostician.models.trace import AgentTrace
 from agent_diagnostician.models.result import DetectionResult, Evidence
-from agent_diagnostician.models.enums import FailureType, TokenExhaustionSubtype
+from agent_diagnostician.models.enums import FailureType, TokenExhaustionSubtype, TRACE_FAILURE_STATUSES
 from agent_diagnostician.utils.text import fuzzy_match
 
 # ── Model token-limit lookup ──────────────────────────────────────────────────
@@ -51,7 +51,7 @@ _TOKEN_EXHAUSTION_PHRASES = [
 _FUZZY_THRESHOLD = 0.8
 
 # Status values that indicate the run did not complete successfully
-_FAILURE_STATUSES = {"error", "failed", "incomplete", "timeout"}
+_FAILURE_STATUSES = TRACE_FAILURE_STATUSES
 
 
 class TokenExhaustionDetector(BaseDetector):

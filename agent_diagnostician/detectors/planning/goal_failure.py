@@ -13,11 +13,19 @@ from typing import Any
 from agent_diagnostician.detectors.base import BaseDetector
 from agent_diagnostician.models.trace import AgentTrace, Step
 from agent_diagnostician.models.result import DetectionResult, Evidence
-from agent_diagnostician.models.enums import FailureType, GoalFailureSubtype, ConfidenceBand
+from agent_diagnostician.models.enums import (
+    FailureType,
+    GoalFailureSubtype,
+    GoalAlignmentVerdict,
+    ConstraintValidationField,
+    EvidenceSignal,
+)
 
 from agent_diagnostician.analysis.embeddings import EmbeddingMatcher
-from agent_diagnostician.analysis.llm_judge import LLMJudge, MockLLMJudge
+from agent_diagnostician.analysis.llm.parser import is_llm_response_ok
+from agent_diagnostician.analysis.llm import LLMJudge, MockLLMJudge
 from agent_diagnostician.analysis.constraint_extractor import ConstraintExtractor
+from agent_diagnostician.config import SECONDARY_EVIDENCE_THRESHOLD
 
 
 class GoalFailureDetector(BaseDetector):
@@ -31,17 +39,19 @@ class GoalFailureDetector(BaseDetector):
     with the other as secondary_evidence if >= 0.30.
     """
 
-    def __init__(self, llm_judge: LLMJudge | None = None):
+    def __init__(
+        self,
+        llm_judge: LLMJudge | None = None,
+        embedding_matcher: EmbeddingMatcher | None = None,
+    ):
         """Initialize detector with LLM judge and embedding matcher.
-        
-        EmbeddingMatcher is expensive to initialize — instantiate ONCE
-        here, not inside detect() or any stage method.
         
         Args:
             llm_judge: LLM judge implementation. If None, uses MockLLMJudge.
+            embedding_matcher: Shared embedding matcher. If None, creates one.
         """
         self.llm_judge = llm_judge or MockLLMJudge()
-        self.embeddings = EmbeddingMatcher()
+        self.embeddings = embedding_matcher or EmbeddingMatcher()
 
     def detect(self, trace: AgentTrace) -> DetectionResult:
         """Run full goal failure detection pipeline on a trace.
@@ -57,11 +67,7 @@ class GoalFailureDetector(BaseDetector):
             evidence, and fix direction
         """
         # Stage 0 — Constraint Extraction
-        # Use pre-computed constraint_list if available (Tier 4), otherwise extract
-        if trace.constraint_list is not None and len(trace.constraint_list) > 0:
-            extracted_constraints = trace.constraint_list
-        else:
-            extracted_constraints = self._extract_constraints(trace.task)
+        extracted_constraints = self._resolve_constraints(trace)
 
         # Stage 1 — Constraint Validation (always runs)
         constraint_result = self._stage_constraint_validation(trace, extracted_constraints)
@@ -73,12 +79,34 @@ class GoalFailureDetector(BaseDetector):
         return self._aggregate_results(trace, constraint_result, misinterpretation_result, extracted_constraints)
 
     def _extract_constraints(self, task: str) -> list[dict]:
-        """Extract constraints from task text using ConstraintExtractor.
-        
-        Returns list of constraint dicts with type, subtype, value, unit, raw.
-        If no constraints found, returns empty list.
-        """
+        """Extract constraints from task text using ConstraintExtractor."""
         return ConstraintExtractor.extract(task)
+
+    def _resolve_constraints(self, trace: AgentTrace) -> list[dict]:
+        """Resolve constraints from Tier 4 list, Tier 2 field, and task text."""
+        if trace.constraint_list is not None and len(trace.constraint_list) > 0:
+            return trace.constraint_list
+
+        merged: list[dict] = []
+        seen: set[tuple] = set()
+
+        def add_constraints(constraint_dicts: list[dict]) -> None:
+            for constraint in constraint_dicts:
+                key = (
+                    constraint.get("type"),
+                    constraint.get("subtype"),
+                    constraint.get("raw"),
+                )
+                if key not in seen:
+                    seen.add(key)
+                    merged.append(constraint)
+
+        if trace.constraints:
+            for raw_constraint in trace.constraints:
+                add_constraints(ConstraintExtractor.extract(raw_constraint))
+
+        add_constraints(ConstraintExtractor.extract(trace.task))
+        return merged
 
     # ───────────────────────────────────────────────────────────────────────
     # Stage 1 — Constraint Validation
@@ -116,23 +144,23 @@ class GoalFailureDetector(BaseDetector):
             validation = self._validate_single_constraint(constraint, trace.final_output)
 
             # Check if this constraint validation returned insufficient evidence
-            if validation.get("insufficient_evidence", False):
+            if validation.get(ConstraintValidationField.INSUFFICIENT_EVIDENCE.value, False):
                 insufficient_evidence_count += 1
                 # Don't count as violation, but note we can't validate
                 continue
 
-            if not validation["satisfied"]:
+            if not validation[ConstraintValidationField.SATISFIED.value]:
                 violated_count += 1
                 violation_details.append({
                     "constraint": constraint,
-                    "reason": validation["reason"],
+                    "reason": validation[ConstraintValidationField.REASON.value],
                 })
                 evidence.append(
                     Evidence(
                         detection_stage="1A - Constraint Validation",
                         signal="constraint_violated",
                         confidence_contribution=0.80 / total_constraints,
-                        explanation=f"Constraint violated: {constraint['raw']} — {validation['reason']}",
+                        explanation=f"Constraint violated: {constraint['raw']} — {validation[ConstraintValidationField.REASON.value]}",
                     )
                 )
 
@@ -140,7 +168,7 @@ class GoalFailureDetector(BaseDetector):
         if insufficient_evidence_count >= total_constraints * 0.7:  # 70% or more constraints can't be validated
             return (0.05, [Evidence(
                 detection_stage="1A - Constraint Validation", 
-                signal="insufficient_evidence",
+                signal=EvidenceSignal.INSUFFICIENT_EVIDENCE.value,
                 confidence_contribution=0.05,
                 explanation=f"Cannot validate {insufficient_evidence_count}/{total_constraints} constraints due to empty/inadequate output"
             )])
@@ -248,7 +276,7 @@ class GoalFailureDetector(BaseDetector):
             evidence.append(
                 Evidence(
                     detection_stage="2B - Task vs Output Similarity",
-                    signal="low_task_output_similarity",
+                    signal=EvidenceSignal.LOW_TASK_OUTPUT_SIMILARITY.value,
                     confidence_contribution=0.0,  # Supporting only
                     explanation=f"Low semantic similarity between task and final output ({task_output_sim:.2f})",
                 )
@@ -276,23 +304,26 @@ class GoalFailureDetector(BaseDetector):
             embedding_score=task_output_sim,
         )
 
+        if not is_llm_response_ok(llm_result):
+            return (base_confidence, evidence)
+
         # Build LLM evidence
-        if llm_result.get("verdict") == "misinterpreted":
+        if llm_result.get("verdict") == GoalAlignmentVerdict.MISINTERPRETED.value:
             base_confidence = 0.55 + llm_result.get("confidence", 0) * 0.20
             evidence.append(
                 Evidence(
                     detection_stage="2C - LLM Judge",
-                    signal="llm_misinterpreted_verdict",
+                    signal=EvidenceSignal.LLM_MISINTERPRETED_VERDICT.value,
                     confidence_contribution=0.55 + llm_result.get("confidence", 0) * 0.20,
                     explanation=f"LLM judge determined task was misinterpreted: {llm_result.get('reason', 'no reason provided')}",
                 )
             )
-        elif llm_result.get("verdict") == "uncertain":
+        elif llm_result.get("verdict") == GoalAlignmentVerdict.UNCERTAIN.value:
             base_confidence = 0.10
             evidence.append(
                 Evidence(
                     detection_stage="2C - LLM Judge",
-                    signal="llm_uncertain_verdict",
+                    signal=EvidenceSignal.LLM_UNCERTAIN_VERDICT.value,
                     confidence_contribution=0.10,
                     explanation=f"LLM judge was uncertain about task completion: {llm_result.get('reason', 'no reason provided')}",
                 )
@@ -334,7 +365,7 @@ class GoalFailureDetector(BaseDetector):
         # CASE 4 (check first): Insufficient evidence due to empty/null output
         # Check if constraint validation returned insufficient evidence signal
         insufficient_evidence_detected = any(
-            e.signal == "insufficient_evidence" 
+            e.signal == EvidenceSignal.INSUFFICIENT_EVIDENCE.value 
             for e in constraint_evidence
         )
         
@@ -368,7 +399,7 @@ class GoalFailureDetector(BaseDetector):
 
             # Build secondary_evidence if misinterpretation_confidence >= 0.30
             secondary_evidence = None
-            if misinterpretation_confidence >= 0.30:
+            if misinterpretation_confidence >= SECONDARY_EVIDENCE_THRESHOLD:
                 secondary_evidence = self.build_result(
                     failure_type=FailureType.GOAL_SATISFACTION_FAILURE,
                     subtype=GoalFailureSubtype.TASK_MISINTERPRETATION.value,
@@ -396,7 +427,7 @@ class GoalFailureDetector(BaseDetector):
 
         # Build secondary_evidence if constraint_confidence >= 0.30
         secondary_evidence = None
-        if constraint_confidence >= 0.30:
+        if constraint_confidence >= SECONDARY_EVIDENCE_THRESHOLD:
             secondary_evidence = self.build_result(
                 failure_type=FailureType.GOAL_SATISFACTION_FAILURE,
                 subtype=GoalFailureSubtype.CONSTRAINT_VIOLATION.value,

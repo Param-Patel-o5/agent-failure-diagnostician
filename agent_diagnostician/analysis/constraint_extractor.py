@@ -8,6 +8,8 @@
 import re
 from typing import Any
 
+from agent_diagnostician.models.enums import ConstraintValidationField
+
 
 class ConstraintExtractor:
     """Extracts numeric, categorical, and structural constraints from task text.
@@ -169,9 +171,9 @@ class ConstraintExtractor:
         # Handle empty/null output - return insufficient evidence
         if actual_value is None:
             return {
-                "satisfied": False,
-                "reason": f"Cannot validate constraint '{constraint['raw']}': output is empty/null",
-                "insufficient_evidence": True
+                ConstraintValidationField.SATISFIED.value: False,
+                ConstraintValidationField.REASON.value: f"Cannot validate constraint '{constraint['raw']}': output is empty/null",
+                ConstraintValidationField.INSUFFICIENT_EVIDENCE.value: True,
             }
         
         subtype = constraint["subtype"]
@@ -186,9 +188,9 @@ class ConstraintExtractor:
             
             if not numbers:
                 return {
-                    "satisfied": False,
-                    "reason": f"Could not find any numeric values in output to validate '{constraint['raw']}'",
-                    "insufficient_evidence": True
+                    ConstraintValidationField.SATISFIED.value: False,
+                    ConstraintValidationField.REASON.value: f"Could not find any numeric values in output to validate '{constraint['raw']}'",
+                    ConstraintValidationField.INSUFFICIENT_EVIDENCE.value: True,
                 }
             
             # For word count constraints, count words
@@ -209,9 +211,9 @@ class ConstraintExtractor:
                     actual_numeric = max(float(num.replace(",", "")) for num in numbers)
                 except ValueError:
                     return {
-                        "satisfied": False,
-                        "reason": f"Could not parse numeric values from output for '{constraint['raw']}'",
-                        "insufficient_evidence": True
+                        ConstraintValidationField.SATISFIED.value: False,
+                        ConstraintValidationField.REASON.value: f"Could not parse numeric values from output for '{constraint['raw']}'",
+                        ConstraintValidationField.INSUFFICIENT_EVIDENCE.value: True,
                     }
 
             checks = {
@@ -223,8 +225,8 @@ class ConstraintExtractor:
             }
             passed = checks.get(subtype, True)
             return {
-                "satisfied": passed,
-                "reason": f"Numeric constraint '{constraint['raw']}': found {actual_numeric}, expected {subtype} {expected} - {'✓' if passed else '✗'}",
+                ConstraintValidationField.SATISFIED.value: passed,
+                ConstraintValidationField.REASON.value: f"Numeric constraint '{constraint['raw']}': found {actual_numeric}, expected {subtype} {expected} - {'✓' if passed else '✗'}",
             }
 
         # Categorical validation -- check if value/keyword appears in output
@@ -235,20 +237,20 @@ class ConstraintExtractor:
             if subtype == "must_use":
                 satisfied = value_lower in actual_lower
                 return {
-                    "satisfied": satisfied,
-                    "reason": f"Categorical constraint 'must use {expected}': {'found' if satisfied else 'not found'} in output",
+                    ConstraintValidationField.SATISFIED.value: satisfied,
+                    ConstraintValidationField.REASON.value: f"Categorical constraint 'must use {expected}': {'found' if satisfied else 'not found'} in output",
                 }
             elif subtype == "must_not_use":
                 satisfied = value_lower not in actual_lower
                 return {
-                    "satisfied": satisfied,
-                    "reason": f"Categorical constraint 'must not use {expected}': {'not found (ok)' if satisfied else 'found in output (violation)'}",
+                    ConstraintValidationField.SATISFIED.value: satisfied,
+                    ConstraintValidationField.REASON.value: f"Categorical constraint 'must not use {expected}': {'not found (ok)' if satisfied else 'found in output (violation)'}",
                 }
             elif subtype == "keep_unchanged":
                 satisfied = value_lower in actual_lower
                 return {
-                    "satisfied": satisfied,
-                    "reason": f"Categorical constraint 'keep {expected} unchanged': {'present' if satisfied else 'missing or changed'} in output",
+                    ConstraintValidationField.SATISFIED.value: satisfied,
+                    ConstraintValidationField.REASON.value: f"Categorical constraint 'keep {expected} unchanged': {'present' if satisfied else 'missing or changed'} in output",
                 }
 
         # Structural validation -- check if format keyword appears in output
@@ -272,8 +274,11 @@ class ConstraintExtractor:
                 satisfied = value_lower in actual_lower
                 
             return {
-                "satisfied": satisfied,
-                "reason": f"Structural constraint '{constraint['raw']}': {'detected' if satisfied else 'not detected'} in output",
+                ConstraintValidationField.SATISFIED.value: satisfied,
+                ConstraintValidationField.REASON.value: f"Structural constraint '{constraint['raw']}': {'detected' if satisfied else 'not detected'} in output",
             }
 
-        return {"satisfied": True, "reason": "Unknown constraint type — skipped"}
+        return {
+            ConstraintValidationField.SATISFIED.value: True,
+            ConstraintValidationField.REASON.value: "Unknown constraint type — skipped",
+        }

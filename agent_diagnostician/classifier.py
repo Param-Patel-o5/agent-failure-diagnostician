@@ -15,15 +15,13 @@ from agent_diagnostician.models.result import DetectionResult, Evidence
 from agent_diagnostician.models.enums import (
     FailureType,
     ConfidenceBand,
-    ToolUseSubtype,
-    GoalFailureSubtype,
-    HallucinationSubtype,
-    TokenExhaustionSubtype,
-    InfiniteLoopSubtype,
-    ContextLossSubtype,
-    PrematureTerminationSubtype,
+    ClassifierSubtype,
+    NO_FAILURE_SUBTYPE_VALUES,
+    INSUFFICIENT_EVIDENCE_SUBTYPE,
+    EvidenceSignal,
 )
-from agent_diagnostician.analysis.llm_judge import LLMJudge, MockLLMJudge
+from agent_diagnostician.analysis.llm import LLMJudge, MockLLMJudge
+from agent_diagnostician.analysis.embeddings import EmbeddingMatcher
 from agent_diagnostician.config import DEFAULT_ENABLED_DETECTORS, DETECTOR_MAPPING
 
 # Import detectors
@@ -46,21 +44,9 @@ DETECTOR_PRIORITY = [
     FailureType.HALLUCINATION,
 ]
 
-# Subtypes that represent "no problem found" for each detector.
-# Used in diagnose() to filter out non-failure results.
-# NOTE: INSUFFICIENT_EVIDENCE is NOT included here because it represents
-# a valid diagnostic result (we found evidence of a problem but can't validate it fully).
-NO_FAILURE_SUBTYPES = {
-    ToolUseSubtype.NO_FAILURE.value,             # "no_tool_use_failure"
-    GoalFailureSubtype.NO_FAILURE.value,         # "no_goal_failure"
-    HallucinationSubtype.NO_HALLUCINATION.value, # "no_hallucination"
-    TokenExhaustionSubtype.NO_TOKEN_EXHAUSTION.value,  # "no_token_exhaustion"
-    InfiniteLoopSubtype.NO_INFINITE_LOOP.value,  # "no_infinite_loop"
-    ContextLossSubtype.NO_CONTEXT_LOSS.value,    # "no_context_loss"
-    PrematureTerminationSubtype.NO_PREMATURE_TERMINATION.value,  # "no_premature_termination"
-    "none",  # classifier's own _no_failure_result subtype
-}
 
+# Re-export for backwards compatibility (classifier module level).
+NO_FAILURE_SUBTYPES = NO_FAILURE_SUBTYPE_VALUES
 
 class Classifier:
     """Runs selected detectors and returns the single most confident diagnosis.
@@ -74,13 +60,15 @@ class Classifier:
         result = classifier.diagnose(trace)
     
     Inject a real LLM judge for production:
-        classifier = Classifier(llm_judge=GeminiLLMJudge(), enabled_detectors=[...])
+        from agent_diagnostician.analysis.llm import create_llm_judge_from_env
+        classifier = Classifier(llm_judge=create_llm_judge_from_env())
     """
 
     def __init__(
         self,
         llm_judge: LLMJudge | None = None,
         enabled_detectors: Optional[List[FailureType]] = None,
+        embedding_matcher: EmbeddingMatcher | None = None,
     ):
         """Initialize classifier with optional detector selection.
         
@@ -88,11 +76,14 @@ class Classifier:
             llm_judge: LLM judge implementation. Defaults to MockLLMJudge.
             enabled_detectors: Optional list of FailureType enums to run.
                               If None, uses DEFAULT_ENABLED_DETECTORS from config.
+            embedding_matcher: Shared embedding model for detectors that need it.
+                              Created once if not provided.
         
         Raises:
             ValueError: If any detector type in enabled_detectors is unknown.
         """
         self.llm_judge = llm_judge or MockLLMJudge()
+        self.embedding_matcher = embedding_matcher or EmbeddingMatcher()
         self.enabled_detectors = enabled_detectors or DEFAULT_ENABLED_DETECTORS
 
         # Validate that all requested detectors exist
@@ -114,25 +105,50 @@ class Classifier:
         detectors = []
 
         if FailureType.TOOL_USE_FAILURE in self.enabled_detectors:
-            detectors.append(ToolUseDetector(llm_judge=self.llm_judge))
+            detectors.append(
+                ToolUseDetector(
+                    llm_judge=self.llm_judge,
+                    embedding_matcher=self.embedding_matcher,
+                )
+            )
 
         if FailureType.GOAL_SATISFACTION_FAILURE in self.enabled_detectors:
-            detectors.append(GoalFailureDetector(llm_judge=self.llm_judge))
+            detectors.append(
+                GoalFailureDetector(
+                    llm_judge=self.llm_judge,
+                    embedding_matcher=self.embedding_matcher,
+                )
+            )
 
         if FailureType.HALLUCINATION in self.enabled_detectors:
             detectors.append(HallucinationDetector(llm_judge=self.llm_judge))
 
         if FailureType.TOKEN_EXHAUSTION in self.enabled_detectors:
-            detectors.append(TokenExhaustionDetector())  # No LLM judge
+            detectors.append(TokenExhaustionDetector())
 
         if FailureType.INFINITE_LOOP in self.enabled_detectors:
-            detectors.append(InfiniteLoopDetector(llm_judge=self.llm_judge))
+            detectors.append(
+                InfiniteLoopDetector(
+                    llm_judge=self.llm_judge,
+                    embedding_matcher=self.embedding_matcher,
+                )
+            )
 
         if FailureType.CONTEXT_LOSS in self.enabled_detectors:
-            detectors.append(ContextLossDetector(llm_judge=self.llm_judge))
+            detectors.append(
+                ContextLossDetector(
+                    llm_judge=self.llm_judge,
+                    embedding_matcher=self.embedding_matcher,
+                )
+            )
 
         if FailureType.PREMATURE_TERMINATION in self.enabled_detectors:
-            detectors.append(PrematureTerminationDetector(llm_judge=self.llm_judge))
+            detectors.append(
+                PrematureTerminationDetector(
+                    llm_judge=self.llm_judge,
+                    embedding_matcher=self.embedding_matcher,
+                )
+            )
 
         return detectors
 
@@ -162,10 +178,11 @@ class Classifier:
             all_results.append(result)
             self.ran_detectors.add(detector_name)
 
-        # Filter to only real failures — exclude only explicit "no failure" results
+        # Filter to real failures only — exclude no-failure and insufficient-evidence
         failures = [
             r for r in all_results
             if r.subtype not in NO_FAILURE_SUBTYPES
+            and r.subtype != INSUFFICIENT_EVIDENCE_SUBTYPE
         ]
 
         # Store all failures for multi-failure summary
@@ -229,7 +246,7 @@ class Classifier:
             evidence.append(
                 Evidence(
                     detection_stage="all_detectors_passed",
-                    signal="all_enabled_detectors",
+                    signal=EvidenceSignal.ALL_ENABLED_DETECTORS.value,
                     confidence_contribution=1.0,
                     explanation=f"All {len(self.ran_detectors)} enabled detectors passed: {', '.join(sorted(self.ran_detectors))}",
                 )
@@ -237,7 +254,7 @@ class Classifier:
 
         return DetectionResult(
             failure_type=FailureType.NONE,
-            subtype="no_failure",
+            subtype=ClassifierSubtype.NO_FAILURE.value,
             confidence_score=0.0,  # Zero confidence that there IS a failure
             confidence_band=ConfidenceBand.CONFIRMED,
             evidence=evidence,

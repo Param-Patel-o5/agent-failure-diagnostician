@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Provider-agnostic LLM judge package (`agent_diagnostician.analysis.llm`)
+- OpenAI and Anthropic provider support (optional dependencies)
+- Dedicated prompts and methods for context loss and premature termination
+- `scripts/configure_llm.py` helper for LLM environment setup
+- `create_llm_judge()` / `create_llm_judge_from_env()` factory functions
+
+### Changed
+- Detectors import from `agent_diagnostician.analysis.llm` (removed `llm_judge.py` shim)
+- Examples use `create_llm_judge_from_env()` with `LLM_PROVIDER` / `LLM_API_KEY`
+- LLM responses include `status: ok | error | parse_failed`; detectors skip non-ok responses
+
+### Removed
+- `agent_diagnostician.analysis.llm_judge` compatibility shim (use `analysis.llm` instead)
+
+### Added (initial)
 - Initial release of Agent Diagnostician
 - Core failure detection framework with 7 detector types
 - Support for planning failures (tool use, goal satisfaction, hallucination)
@@ -15,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support for termination failures (premature termination, infinite loops)
 - Gemini LLM judge integration with API key authentication
 - Framework-agnostic trace format supporting multiple tiers of data
-- Comprehensive test suite with 115+ real-world test cases
+- 63 JSON trace fixtures in `test cases/` for manual and integration validation
 - Evidence-based confidence scoring with human-readable bands
 - Graceful degradation for missing trace data
 - Embedding-based semantic similarity analysis
@@ -23,10 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multi-stage detection pipeline (rules → embeddings → LLM)
 
 ### Performance
-- Context loss detection: 83.3% accuracy on validation cases
-- Goal satisfaction detection: 100% accuracy on constraint validation
-- Tool use detection: 100% accuracy on validation test cases
-- Average processing time: < 5 seconds with LLM, < 500ms without
+- Preliminary validation on fixture traces (not yet automated in CI)
+- Average processing time: < 5 seconds with LLM, < 500ms without (informal benchmarks)
 
 ### Documentation
 - Complete API reference with examples

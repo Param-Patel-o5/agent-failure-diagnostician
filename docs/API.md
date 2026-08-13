@@ -11,13 +11,15 @@ class Classifier:
     def __init__(
         self, 
         llm_judge: LLMJudge | None = None,
-        enabled_detectors: Optional[List[FailureType]] = None
+        enabled_detectors: Optional[List[FailureType]] = None,
+        embedding_matcher: EmbeddingMatcher | None = None,
     ):
         """Initialize classifier with optional configuration.
         
         Args:
             llm_judge: LLM implementation for complex reasoning. Defaults to MockLLMJudge.
             enabled_detectors: List of detector types to run. Defaults to all detectors.
+            embedding_matcher: Shared EmbeddingMatcher for embedding-based detectors.
         """
     
     def diagnose(self, trace: AgentTrace) -> DetectionResult:
@@ -133,37 +135,48 @@ class FailureType(str, Enum):
 
 ### ConfidenceBand
 
+Thresholds are defined in `agent_diagnostician/config.py` (`CONFIDENCE_THRESHOLDS`)
+and applied by `BaseDetector.confidence_to_band()`:
+
 ```python
 class ConfidenceBand(str, Enum):
-    CONFIRMED = "confirmed"      # 0.70 - 1.00
-    LIKELY = "likely"           # 0.50 - 0.69  
-    MAYBE = "maybe"             # 0.30 - 0.49
-    INSUFFICIENT_EVIDENCE = "insufficient_evidence"  # 0.00 - 0.29
+    CONFIRMED = "confirmed"      # score >= 0.85
+    LIKELY = "likely"            # score >= 0.60
+    MAYBE = "maybe"              # score >= 0.30
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"  # score < 0.30
 ```
 
 ## LLM Judge Interface
 
+### create_llm_judge / create_llm_judge_from_env
+
+Provider-agnostic factory. Set `LLM_PROVIDER` and `LLM_API_KEY` (or a
+provider-specific key such as `GEMINI_API_KEY`, `OPENAI_API_KEY`, or
+`ANTHROPIC_API_KEY`).
+
+```python
+from agent_diagnostician.analysis.llm import create_llm_judge_from_env
+
+judge = create_llm_judge_from_env()
+```
+
+Supported providers: `gemini`, `openai`, `anthropic`, `mock`.
+
+Optional extras: `pip install agent-diagnostician[llm-openai]`,
+`pip install agent-diagnostician[llm-anthropic]`, or
+`pip install agent-diagnostician[llm-all]`.
+
+Use `python scripts/configure_llm.py --show` to inspect environment settings,
+or `--provider gemini --api-key YOUR_KEY` to print setup commands.
+
 ### GeminiLLMJudge
 
-Production LLM implementation using Google Gemini.
+Deprecated convenience wrapper — prefer `create_llm_judge()`.
 
 ```python
 class GeminiLLMJudge:
-    def __init__(
-        self,
-        api_key: str,
-        model: str = "models/gemini-2.5-flash", 
-        temperature: float = 0.1,
-        max_retries: int = 3
-    ):
-        """Initialize Gemini LLM judge.
-        
-        Args:
-            api_key: Google API key
-            model: Gemini model name
-            temperature: Sampling temperature (0.0-1.0)
-            max_retries: Maximum retry attempts
-        """
+    def __init__(self, model_name: str | None = None, api_key: str | None = None):
+        """Initialize Gemini LLM judge."""
     
     def evaluate_wrong_tool(self, **kwargs) -> Dict[str, Any]:
         """Evaluate if wrong tool was selected."""
@@ -179,19 +192,33 @@ class GeminiLLMJudge:
     
     def evaluate_hallucination(self, **kwargs) -> Dict[str, Any]:
         """Evaluate presence of hallucinated content."""
+
+    def evaluate_context_loss(self, **kwargs) -> Dict[str, Any]:
+        """Evaluate whether the agent lost established context at a step."""
+
+    def evaluate_premature_termination(self, **kwargs) -> Dict[str, Any]:
+        """Evaluate whether the agent terminated before completing the task."""
 ```
+
+All `evaluate_*` methods return a dict with `status: ok | error | parse_failed`.
+Detectors ignore non-`ok` responses and fall back to rules/embeddings only.
 
 ### MockLLMJudge
 
-Testing implementation that returns deterministic responses.
+Testing implementation used when no real LLM judge is configured.
 
 ```python
 class MockLLMJudge:
-    """Mock implementation for testing and development."""
+    """Mock implementation for development without an API key."""
     
     def evaluate_wrong_tool(self, **kwargs) -> Dict[str, Any]:
-        return {"verdict": "correct", "confidence": 0.8, "reason": "Mock response"}
+        return {"verdict": "uncertain", "confidence": 0.0, "reason": "mock judge"}
+    
+    # All other evaluate_* methods return uncertain / zero confidence similarly.
 ```
+
+`Classifier()` defaults to `MockLLMJudge`. LLM fallback stages then defer to
+rules and embeddings only.
 
 ## Analysis Components
 
@@ -334,15 +361,13 @@ result = classifier.diagnose(trace)
 ### Custom LLM Configuration
 
 ```python
-from agent_diagnostician.analysis.llm_judge import GeminiLLMJudge
+import os
+from agent_diagnostician.analysis.llm import create_llm_judge_from_env
 
-# Configure custom LLM judge
-judge = GeminiLLMJudge(
-    api_key="your-key",
-    model="models/gemini-pro", 
-    temperature=0.05
-)
+os.environ["LLM_PROVIDER"] = "gemini"  # or openai, anthropic
+os.environ["LLM_API_KEY"] = "your-key"
 
+judge = create_llm_judge_from_env()
 classifier = Classifier(llm_judge=judge)
 result = classifier.diagnose(trace)
 ```

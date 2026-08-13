@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 from agent_diagnostician.models.trace import AgentTrace
 from agent_diagnostician.models.result import DetectionResult, Evidence
 from agent_diagnostician.models.enums import ConfidenceBand
+from agent_diagnostician.config import CONFIDENCE_THRESHOLDS
 
 
 class BaseDetector(ABC):
@@ -29,13 +30,13 @@ class BaseDetector(ABC):
 
     @staticmethod
     def confidence_to_band(score: float) -> ConfidenceBand:
-        """Converts a raw 0-1 confidence score into a ConfidenceBand.
-        Thresholds are a starting point -- tune per detector later if needed."""
-        if score >= 0.85:
+        """Converts a raw 0-1 confidence score into a ConfidenceBand."""
+        thresholds = CONFIDENCE_THRESHOLDS
+        if score >= thresholds["confirmed"]:
             return ConfidenceBand.CONFIRMED
-        elif score >= 0.6:
+        elif score >= thresholds["likely"]:
             return ConfidenceBand.LIKELY
-        elif score >= 0.3:
+        elif score >= thresholds["maybe"]:
             return ConfidenceBand.MAYBE
         else:
             return ConfidenceBand.INSUFFICIENT_EVIDENCE

@@ -58,19 +58,18 @@ classifier = Classifier(enabled_detectors=[
 
 ### 2. Embedding Optimization
 
-#### Caching Strategy
+Reuse one embedding model across detectors by passing a shared matcher to
+`Classifier`:
+
 ```python
-from agent_diagnostician.analysis.embeddings import CachedEmbeddingMatcher
+from agent_diagnostician import Classifier
+from agent_diagnostician.analysis.embeddings import EmbeddingMatcher
 
-# Configure embedding cache
-matcher = CachedEmbeddingMatcher(
-    model_name="all-MiniLM-L6-v2",  # Faster, smaller model
-    cache_size=50000,               # Larger cache for better hit rate
-    persistent_cache=True           # Disk-based cache across sessions
-)
-
+matcher = EmbeddingMatcher("all-MiniLM-L6-v2")  # default model
 classifier = Classifier(embedding_matcher=matcher)
 ```
+
+> **Note:** `CachedEmbeddingMatcher` (disk cache) is not implemented yet.
 
 #### Model Selection
 ```python
@@ -100,21 +99,18 @@ similarities = matcher.batch_similarity(
 
 #### Model Selection
 ```python
-from agent_diagnostician.analysis.llm_judge import GeminiLLMJudge
+import os
+from agent_diagnostician.analysis.llm import create_llm_judge_from_env
 
-# Fastest: Gemini Flash
-judge = GeminiLLMJudge(
-    model="models/gemini-2.5-flash",
-    temperature=0.1,
-    max_tokens=1000  # Shorter responses
-)
+os.environ["LLM_PROVIDER"] = "gemini"  # or openai, anthropic
+os.environ["LLM_API_KEY"] = "your-key"
 
-# Most capable: Gemini Pro (slower, more accurate)
-judge = GeminiLLMJudge(
-    model="models/gemini-pro",
-    temperature=0.1
-)
+judge = create_llm_judge_from_env()
 ```
+
+> **Note:** Use `python scripts/configure_llm.py --show` to inspect current
+> environment settings. Temperature, retries, and async batch APIs may be
+> extended in future releases.
 
 #### Request Optimization
 ```python
@@ -124,30 +120,19 @@ detector.SIMILARITY_THRESHOLD = 0.3      # Lower threshold = catch more with emb
 ```
 
 #### Async Processing
+
+> **Note:** `AsyncClassifier` is not in the library yet. For batch runs today,
+> reuse one `Classifier` instance and call `diagnose()` in a loop or use
+> `concurrent.futures.ThreadPoolExecutor` around `classifier.diagnose`.
+
 ```python
-import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from agent_diagnostician import Classifier
 
-class AsyncClassifier:
-    def __init__(self, max_workers=4):
-        self.classifier = Classifier()
-        self.executor = ThreadPoolExecutor(max_workers=max_workers)
-    
-    async def diagnose_async(self, trace):
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            self.executor, 
-            self.classifier.diagnose, 
-            trace
-        )
-    
-    async def diagnose_batch(self, traces):
-        tasks = [self.diagnose_async(trace) for trace in traces]
-        return await asyncio.gather(*tasks)
+classifier = Classifier()
 
-# Usage
-async_classifier = AsyncClassifier(max_workers=8)
-results = await async_classifier.diagnose_batch(traces)
+with ThreadPoolExecutor(max_workers=4) as pool:
+    results = list(pool.map(classifier.diagnose, traces))
 ```
 
 ### 4. Memory Optimization

@@ -39,13 +39,13 @@ class Reporter:
         Returns:
             Human-readable explanation of what this confidence means
         """
-        if confidence_band == "confirmed":
+        if confidence_band == ConfidenceBand.CONFIRMED.value:
             return f"Very high confidence ({confidence_score:.0%}) — multiple strong signals detected"
-        elif confidence_band == "likely": 
+        elif confidence_band == ConfidenceBand.LIKELY.value:
             return f"High confidence ({confidence_score:.0%}) — clear evidence found"
-        elif confidence_band == "maybe":
-            return f"Moderate confidence ({confidence_score:.0%}) — some evidence found, but not definitive" 
-        elif confidence_band == "insufficient_evidence":
+        elif confidence_band == ConfidenceBand.MAYBE.value:
+            return f"Moderate confidence ({confidence_score:.0%}) — some evidence found, but not definitive"
+        elif confidence_band == ConfidenceBand.INSUFFICIENT_EVIDENCE.value:
             return f"Low confidence ({confidence_score:.0%}) — limited evidence available"
         else:
             return f"Confidence: {confidence_score:.0%}"

@@ -1,0 +1,28 @@
+You are evaluating whether an AI agent lost or contradicted information established in earlier steps.
+
+Task: {task}{thought_str}
+
+Steps taken so far:
+{steps_str}
+
+Current step under review (step {step_index}):
+Tool: {tool_name}
+Input: {tool_input}
+Output: {tool_output}
+
+Prior tool outputs available before this step:
+{prior_str}
+
+Context loss means the agent dropped, ignored, or contradicted a value that was
+already established in a prior step (e.g. used the wrong account ID after
+retrieving the correct one earlier). This is different from hallucination
+(inventing a value from nothing) or goal misinterpretation (wrong task).
+
+Did the agent lose track of established context at this step?
+
+Respond ONLY with a JSON object:
+{{
+  "verdict": "context_lost" or "no_context_loss" or "uncertain",
+  "confidence": <float between 0 and 1>,
+  "reason": "<one sentence>"
+}}

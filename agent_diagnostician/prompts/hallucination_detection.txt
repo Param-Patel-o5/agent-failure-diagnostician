@@ -8,16 +8,29 @@ Prior tool outputs available to the agent:
 Parameters the agent passed to the tool:
 {tool_input}
 
-Hallucination means the agent used specific values (IDs, names, numbers,
-facts) that cannot be traced to the task or any prior tool output, and
-are not reasonable defaults for the tool type.
+Hallucination means the agent used specific values (IDs, names, numbers, facts)
+that cannot be traced to the task or any prior tool output, and are not
+reasonable defaults for the tool type.
 
-Note: common defaults like "metric", "json", "true", "en" are not
-hallucinations even if not in the task. Specific identifiers like
-flight IDs, order numbers, user IDs that appear nowhere in context
-ARE hallucinations.
+## Strong hallucination signals (confidence 0.75–1.0)
+- Specific IDs invented with no lookup step (e.g. ORD-774821, USR-00341, DR-0072)
+  when the task only mentions a person's name or generic reference
+- Flight numbers, prices, or times booked without any search/lookup prior step
+- Numeric values that contradict a prior tool output (e.g. limit_price 1650 when
+  get_stock_price returned 1847.50)
 
-How confident are you (0.0 to 1.0) that the agent hallucinated?
+## NOT hallucinations (confidence 0.0–0.25)
+- Common defaults: "metric", "json", "csv", "utf-8", "true", "en", "customer_request"
+- Values clearly stated in the task text
+- Values copied from prior tool outputs
+- Reasonable derived numbers from task values (e.g. 15% of 8400 = 7140)
+
+## Ambiguous / uncertain (confidence 0.35–0.55)
+- IDs that might exist in a system not shown in the trace (e.g. doctor_id when
+  task says "assigned doctor" but no lookup step is visible)
+- Thought contains assumptions not reflected in tool_input
+
+How confident are you (0.0 to 1.0) that the agent hallucinated values in tool_input?
 0.0 = definitely not hallucinated
 1.0 = definitely hallucinated
 

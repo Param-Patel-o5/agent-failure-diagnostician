@@ -9,7 +9,8 @@ for diagnosing agent execution failures across different scenarios.
 from agent_diagnostician import Classifier
 from agent_diagnostician.models.trace import AgentTrace, Step
 from agent_diagnostician.models.enums import FailureType
-from agent_diagnostician.analysis.llm_judge import GeminiLLMJudge
+from agent_diagnostician.analysis.llm import create_llm_judge_from_env
+from agent_diagnostician.analysis.llm.config import PROVIDER_ENV_KEYS
 
 
 def example_1_successful_execution():
@@ -226,14 +227,17 @@ def example_5_with_real_llm():
     print("🔍 Example 5: Enhanced Analysis with Real LLM")
     print("="*50)
     
-    # Check if API key is available
     import os
-    api_key = os.getenv("GEMINI_API_KEY")
+    from agent_diagnostician.models.enums import LLMProvider
+
+    provider = os.getenv("LLM_PROVIDER", LLMProvider.GEMINI.value).lower()
+    api_key = os.getenv("LLM_API_KEY") or os.getenv(PROVIDER_ENV_KEYS.get(provider, ""), "")
     
     if not api_key:
-        print("⚠️  Skipping LLM example - GEMINI_API_KEY not set")
-        print("   Set environment variable to run this example:")
-        print("   export GEMINI_API_KEY='your-api-key-here'")
+        print("⚠️  Skipping LLM example - no API key found")
+        print("   Set LLM_PROVIDER and LLM_API_KEY (or a provider-specific key):")
+        print("   PowerShell: $env:LLM_PROVIDER='gemini'; $env:LLM_API_KEY='your-key'")
+        print("   Or run: python scripts/configure_llm.py --provider gemini --api-key YOUR_KEY")
         print()
         return
     
@@ -272,11 +276,11 @@ def example_5_with_real_llm():
         ]
     )
     
-    # Initialize classifier with real LLM judge
-    llm_judge = GeminiLLMJudge(api_key=api_key)
+    # Initialize classifier with real LLM judge (reads LLM_PROVIDER / LLM_API_KEY from environment)
+    llm_judge = create_llm_judge_from_env()
     classifier = Classifier(llm_judge=llm_judge)
     
-    print("🤖 Running analysis with Gemini LLM judge...")
+    print(f"🤖 Running analysis with {provider} LLM judge...")
     
     result = classifier.diagnose(trace)
     
@@ -434,6 +438,6 @@ if __name__ == "__main__":
     
     print("✨ All examples completed!")
     print("\nNext steps:")
-    print("• Check out the framework integration examples in docs/INTEGRATIONS.md")
-    print("• Read the performance optimization guide in docs/PERFORMANCE.md")
-    print("• Explore advanced configuration options in the API reference")
+    print("• See docs/INTEGRATIONS.md for framework integration patterns")
+    print("• See docs/PERFORMANCE.md for embedding and detector selection tips")
+    print("• See docs/API.md for the full API reference")
